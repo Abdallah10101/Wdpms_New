@@ -89,7 +89,7 @@ export default function NewOrder() {
           delivery_date: formData.delivery_date || null,
           priority: formData.priority,
           created_by: user?.id,
-        })
+        } as any)
         .select()
         .single();
 
