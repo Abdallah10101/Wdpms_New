@@ -25,6 +25,7 @@ import {
   Building2,
   UserPlus,
   Truck,
+  Calculator,
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -80,6 +81,12 @@ const navItems: NavItem[] = [
     href: '/team',
     icon: <Users className="h-5 w-5" />,
     roles: ['admin'],
+  },
+  {
+    label: 'WDS Calculator',
+    href: '/calculator',
+    icon: <Calculator className="h-5 w-5" />,
+    roles: ['admin', 'team'],
   },
   {
     label: 'Settings',
