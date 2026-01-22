@@ -144,7 +144,7 @@ export default function Orders() {
           </div>
         ) : selectedClient ? (
           /* Kanban Board View */
-          <OrderKanban orders={getOrdersForClient(selectedClient.id)} />
+          <OrderKanban orders={getOrdersForClient(selectedClient.id)} onOrderUpdated={fetchData} />
         ) : filteredClients.length === 0 ? (
           /* Empty State */
           <div className="flex flex-col items-center justify-center py-12">
