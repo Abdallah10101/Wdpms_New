@@ -50,6 +50,7 @@ export interface Client {
   contact_phone?: string;
   address?: string;
   notes?: string;
+  logo_url?: string;
   user_id?: string;
   created_by?: string;
   created_at: string;
