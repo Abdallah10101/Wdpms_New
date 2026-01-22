@@ -52,7 +52,7 @@ const navItems: NavItem[] = [
     roles: ['admin', 'team', 'client'],
   },
   {
-    label: 'Marynthelabel',
+    label: 'Clients',
     href: '/clients',
     icon: <Building2 className="h-5 w-5" />,
     roles: ['admin', 'team'],
