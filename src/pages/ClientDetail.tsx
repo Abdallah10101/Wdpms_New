@@ -19,7 +19,19 @@ import {
   FileText,
   Clock,
   CheckCircle2,
+  Trash2,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import type { Client, Order, OrderFile, PRODUCTION_STAGES } from '@/lib/types';
 
 const STAGES: typeof PRODUCTION_STAGES = [
@@ -46,6 +58,7 @@ export default function ClientDetail() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [receipts, setReceipts] = useState<OrderFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -111,6 +124,36 @@ export default function ClientDetail() {
 
   const getStageConfig = (stage: string) => {
     return STAGES.find(s => s.value === stage) || STAGES[0];
+  };
+
+  const handleDeleteClient = async () => {
+    if (!client || isDeleting) return;
+    setIsDeleting(true);
+
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .delete()
+        .eq('id', client.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Client Deleted',
+        description: 'The client has been permanently deleted.',
+      });
+
+      navigate('/clients');
+    } catch (error) {
+      console.error('Error deleting client:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete client. Make sure all orders are deleted first.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const activeOrders = orders.filter(o => o.current_stage !== 'delivered');
@@ -386,6 +429,52 @@ export default function ClientDetail() {
               <p className="text-sm text-muted-foreground whitespace-pre-wrap">
                 {client.notes}
               </p>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Delete Client - Admin Only */}
+        {role === 'admin' && (
+          <Card className="border-destructive/50">
+            <CardHeader>
+              <CardTitle className="text-destructive flex items-center gap-2">
+                <Trash2 className="h-5 w-5" />
+                Danger Zone
+              </CardTitle>
+              <CardDescription>Permanently delete this client and all associated data</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-full" disabled={isDeleting}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    {isDeleting ? 'Deleting...' : 'Delete Client'}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Client</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete "{client.name}"?
+                      This action cannot be undone and will permanently remove all associated data.
+                      {orders.length > 0 && (
+                        <span className="block mt-2 text-destructive font-medium">
+                          Warning: This client has {orders.length} order(s). Delete orders first.
+                        </span>
+                      )}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDeleteClient}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </CardContent>
           </Card>
         )}
