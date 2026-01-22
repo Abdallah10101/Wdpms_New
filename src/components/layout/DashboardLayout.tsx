@@ -23,6 +23,8 @@ import {
   X,
   ChevronRight,
   Building2,
+  UserPlus,
+  Truck,
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -53,6 +55,18 @@ const navItems: NavItem[] = [
     label: 'Clients',
     href: '/clients',
     icon: <Building2 className="h-5 w-5" />,
+    roles: ['admin', 'team'],
+  },
+  {
+    label: 'Leads',
+    href: '/leads',
+    icon: <UserPlus className="h-5 w-5" />,
+    roles: ['admin', 'team'],
+  },
+  {
+    label: 'Suppliers',
+    href: '/suppliers',
+    icon: <Truck className="h-5 w-5" />,
     roles: ['admin', 'team'],
   },
   {

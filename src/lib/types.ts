@@ -19,6 +19,10 @@ export type ProductionStage =
   | 'shipping'
   | 'delivered';
 
+export type LeadStatus = 'new' | 'contacted' | 'qualified' | 'proposal' | 'negotiation' | 'won' | 'lost';
+
+export type SupplierCategory = 'fabric' | 'printing' | 'embroidery' | 'sewing' | 'packaging' | 'wash_house' | 'accessories' | 'labels' | 'other';
+
 export interface Profile {
   id: string;
   user_id: string;
@@ -62,6 +66,7 @@ export interface Order {
   fabric?: string;
   supplier?: string;
   quantity: number;
+  pieces_sent?: number;
   delivery_date?: string;
   priority: OrderPriority;
   current_stage: ProductionStage;
@@ -138,6 +143,41 @@ export interface OrderStageHistory {
   changer?: Profile;
 }
 
+export interface Lead {
+  id: string;
+  company_name: string;
+  contact_name?: string;
+  email?: string;
+  phone?: string;
+  brand_name?: string;
+  status: LeadStatus;
+  source?: string;
+  notes?: string;
+  estimated_value?: string;
+  next_follow_up?: string;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Supplier {
+  id: string;
+  name: string;
+  contact_person?: string;
+  phone?: string;
+  email?: string;
+  address?: string;
+  category: SupplierCategory;
+  specialty?: string;
+  notes?: string;
+  pricing_info?: string;
+  quality_rating?: number;
+  is_active: boolean;
+  created_by?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 // Stage configuration
 export const PRODUCTION_STAGES: { value: ProductionStage; label: string; color: string }[] = [
   { value: 'not_started', label: 'Not Started', color: 'bg-gray-500' },
@@ -165,6 +205,28 @@ export const TASK_STATUS_CONFIG: { value: TaskStatus; label: string; color: stri
   { value: 'in_progress', label: 'In Progress', color: 'bg-blue-500' },
   { value: 'done', label: 'Done', color: 'bg-green-500' },
   { value: 'blocked', label: 'Blocked', color: 'bg-red-500' },
+];
+
+export const LEAD_STATUS_CONFIG: { value: LeadStatus; label: string; color: string }[] = [
+  { value: 'new', label: 'New', color: 'bg-blue-500' },
+  { value: 'contacted', label: 'Contacted', color: 'bg-sky-500' },
+  { value: 'qualified', label: 'Qualified', color: 'bg-purple-500' },
+  { value: 'proposal', label: 'Proposal', color: 'bg-orange-500' },
+  { value: 'negotiation', label: 'Negotiation', color: 'bg-yellow-500' },
+  { value: 'won', label: 'Won', color: 'bg-green-500' },
+  { value: 'lost', label: 'Lost', color: 'bg-red-500' },
+];
+
+export const SUPPLIER_CATEGORY_CONFIG: { value: SupplierCategory; label: string; color: string }[] = [
+  { value: 'fabric', label: 'Fabric', color: 'bg-blue-500' },
+  { value: 'printing', label: 'Printing', color: 'bg-fuchsia-500' },
+  { value: 'embroidery', label: 'Embroidery', color: 'bg-pink-500' },
+  { value: 'sewing', label: 'Sewing', color: 'bg-orange-500' },
+  { value: 'packaging', label: 'Packaging', color: 'bg-green-500' },
+  { value: 'wash_house', label: 'Wash House', color: 'bg-cyan-500' },
+  { value: 'accessories', label: 'Accessories', color: 'bg-purple-500' },
+  { value: 'labels', label: 'Labels', color: 'bg-yellow-500' },
+  { value: 'other', label: 'Other', color: 'bg-gray-500' },
 ];
 
 export function getStageIndex(stage: ProductionStage): number {
