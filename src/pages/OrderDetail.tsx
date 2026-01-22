@@ -28,7 +28,19 @@ import {
   Truck,
   Clock,
   CheckCircle2,
+  Trash2,
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import {
   PRODUCTION_STAGES,
   PRIORITY_CONFIG,
@@ -49,6 +61,7 @@ export default function OrderDetail() {
   const [stageHistory, setStageHistory] = useState<OrderStageHistory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -128,6 +141,36 @@ export default function OrderDetail() {
 
   const getStageConfig = (stage: ProductionStage) => {
     return PRODUCTION_STAGES.find(s => s.value === stage) || PRODUCTION_STAGES[0];
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!order || isDeleting) return;
+    setIsDeleting(true);
+
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .delete()
+        .eq('id', order.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Order Deleted',
+        description: 'The order has been permanently deleted.',
+      });
+
+      navigate('/orders');
+    } catch (error) {
+      console.error('Error deleting order:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to delete order.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (authLoading || !user) {
@@ -421,6 +464,44 @@ export default function OrderDetail() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Delete Order - Admin Only */}
+            {role === 'admin' && (
+              <Card className="border-destructive/50">
+                <CardHeader>
+                  <CardTitle className="text-destructive">Danger Zone</CardTitle>
+                  <CardDescription>Permanently delete this order</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" className="w-full" disabled={isDeleting}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        {isDeleting ? 'Deleting...' : 'Delete Order'}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete Order</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Are you sure you want to delete "{order.product_name}" ({order.order_number})?
+                          This action cannot be undone and will permanently remove all associated data.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={handleDeleteOrder}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          Delete
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
