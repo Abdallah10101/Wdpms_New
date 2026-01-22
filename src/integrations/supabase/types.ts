@@ -59,6 +59,57 @@ export type Database = {
         }
         Relationships: []
       }
+      leads: {
+        Row: {
+          brand_name: string | null
+          company_name: string
+          contact_name: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          estimated_value: number | null
+          id: string
+          next_follow_up: string | null
+          notes: string | null
+          phone: string | null
+          source: string | null
+          status: Database["public"]["Enums"]["lead_status"]
+          updated_at: string
+        }
+        Insert: {
+          brand_name?: string | null
+          company_name: string
+          contact_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          estimated_value?: number | null
+          id?: string
+          next_follow_up?: string | null
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string
+        }
+        Update: {
+          brand_name?: string | null
+          company_name?: string
+          contact_name?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          estimated_value?: number | null
+          id?: string
+          next_follow_up?: string | null
+          notes?: string | null
+          phone?: string | null
+          source?: string | null
+          status?: Database["public"]["Enums"]["lead_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
       order_assignments: {
         Row: {
           assigned_at: string
@@ -281,6 +332,7 @@ export type Database = {
           fabric: string | null
           id: string
           order_number: string
+          pieces_sent: number | null
           priority: Database["public"]["Enums"]["order_priority"]
           product_name: string
           quantity: number
@@ -299,6 +351,7 @@ export type Database = {
           fabric?: string | null
           id?: string
           order_number: string
+          pieces_sent?: number | null
           priority?: Database["public"]["Enums"]["order_priority"]
           product_name: string
           quantity?: number
@@ -317,6 +370,7 @@ export type Database = {
           fabric?: string | null
           id?: string
           order_number?: string
+          pieces_sent?: number | null
           priority?: Database["public"]["Enums"]["order_priority"]
           product_name?: string
           quantity?: number
@@ -368,6 +422,60 @@ export type Database = {
         }
         Relationships: []
       }
+      suppliers: {
+        Row: {
+          address: string | null
+          category: Database["public"]["Enums"]["supplier_category"]
+          contact_person: string | null
+          created_at: string
+          created_by: string | null
+          email: string | null
+          id: string
+          is_active: boolean
+          name: string
+          notes: string | null
+          phone: string | null
+          pricing_info: string | null
+          quality_rating: number | null
+          specialty: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          category?: Database["public"]["Enums"]["supplier_category"]
+          contact_person?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          notes?: string | null
+          phone?: string | null
+          pricing_info?: string | null
+          quality_rating?: number | null
+          specialty?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          category?: Database["public"]["Enums"]["supplier_category"]
+          contact_person?: string | null
+          created_at?: string
+          created_by?: string | null
+          email?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          pricing_info?: string | null
+          quality_rating?: number | null
+          specialty?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -413,6 +521,14 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "team" | "client"
+      lead_status:
+        | "new"
+        | "contacted"
+        | "qualified"
+        | "proposal"
+        | "negotiation"
+        | "won"
+        | "lost"
       order_priority: "low" | "medium" | "high" | "urgent"
       production_stage:
         | "not_started"
@@ -426,6 +542,16 @@ export type Database = {
         | "packaging"
         | "shipping"
         | "delivered"
+      supplier_category:
+        | "fabric"
+        | "printing"
+        | "embroidery"
+        | "sewing"
+        | "packaging"
+        | "wash_house"
+        | "accessories"
+        | "labels"
+        | "other"
       task_status: "pending" | "in_progress" | "done" | "blocked"
     }
     CompositeTypes: {
@@ -555,6 +681,15 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "team", "client"],
+      lead_status: [
+        "new",
+        "contacted",
+        "qualified",
+        "proposal",
+        "negotiation",
+        "won",
+        "lost",
+      ],
       order_priority: ["low", "medium", "high", "urgent"],
       production_stage: [
         "not_started",
@@ -568,6 +703,17 @@ export const Constants = {
         "packaging",
         "shipping",
         "delivered",
+      ],
+      supplier_category: [
+        "fabric",
+        "printing",
+        "embroidery",
+        "sewing",
+        "packaging",
+        "wash_house",
+        "accessories",
+        "labels",
+        "other",
       ],
       task_status: ["pending", "in_progress", "done", "blocked"],
     },
