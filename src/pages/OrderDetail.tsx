@@ -274,13 +274,13 @@ export default function OrderDetail() {
         <div className="grid gap-6 lg:grid-cols-2">
           {/* Left Column - Details & Notes */}
           <div className="space-y-6">
-            {/* Product Details */}
+            {/* Product Description */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Product Details</CardTitle>
+                <CardTitle className="text-lg">Product Description</CardTitle>
               </CardHeader>
               <CardContent>
-                <OrderDetails order={order} />
+                <OrderDetails order={order} canEdit={canEdit} onUpdate={fetchOrderData} />
               </CardContent>
             </Card>
 
