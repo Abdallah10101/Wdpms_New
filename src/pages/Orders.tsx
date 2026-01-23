@@ -8,10 +8,14 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Plus, Search, ArrowLeft, Package } from 'lucide-react';
+import { format, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 import type { Order, Client } from '@/lib/types';
 import { ClientCard } from '@/components/orders/ClientCard';
 import { OrderKanban } from '@/components/orders/OrderKanban';
 import { ClientLogoUpload } from '@/components/orders/ClientLogoUpload';
+import { MonthSelector } from '@/components/orders/MonthSelector';
+import { LiveActivityFeed } from '@/components/orders/LiveActivityFeed';
+import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 
 export default function Orders() {
   const navigate = useNavigate();
@@ -19,11 +23,16 @@ export default function Orders() {
   const { toast } = useToast();
 
   const [clients, setClients] = useState<Client[]>([]);
-  const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<Date | null>(null);
   const [logoUploadClient, setLogoUploadClient] = useState<Client | null>(null);
+
+  // Use realtime hook for orders
+  const { orders, recentUpdates, isLoading: ordersLoading, refetch } = useRealtimeOrders(
+    selectedClient?.id
+  );
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -33,27 +42,24 @@ export default function Orders() {
 
   useEffect(() => {
     if (user && role) {
-      fetchData();
+      fetchClients();
     }
   }, [user, role]);
 
-  const fetchData = async () => {
+  const fetchClients = async () => {
     try {
-      const [clientsRes, ordersRes] = await Promise.all([
-        supabase.from('clients').select('*').order('brand_name'),
-        supabase.from('orders').select('*, client:clients(id, name, brand_name)').order('created_at', { ascending: false }),
-      ]);
+      const { data, error } = await supabase
+        .from('clients')
+        .select('*')
+        .order('brand_name');
 
-      if (clientsRes.error) throw clientsRes.error;
-      if (ordersRes.error) throw ordersRes.error;
-
-      setClients((clientsRes.data || []) as Client[]);
-      setOrders((ordersRes.data || []) as Order[]);
+      if (error) throw error;
+      setClients((data || []) as Client[]);
     } catch (error) {
-      console.error('Error fetching data:', error);
+      console.error('Error fetching clients:', error);
       toast({
         title: 'Error',
-        description: 'Failed to load data.',
+        description: 'Failed to load clients.',
         variant: 'destructive',
       });
     } finally {
@@ -69,6 +75,13 @@ export default function Orders() {
     return orders.filter(o => o.client_id === clientId);
   };
 
+  const getOrdersForMonth = (month: Date) => {
+    return orders.filter(order => {
+      const orderDate = new Date(order.created_at);
+      return isSameMonth(orderDate, month);
+    });
+  };
+
   const filteredClients = clients.filter((client) => {
     const searchLower = searchQuery.toLowerCase();
     return (
@@ -82,9 +95,42 @@ export default function Orders() {
     setLogoUploadClient(client);
   };
 
+  const handleBackClick = () => {
+    if (selectedMonth) {
+      setSelectedMonth(null);
+    } else {
+      setSelectedClient(null);
+    }
+  };
+
+  const getHeaderTitle = () => {
+    if (selectedClient && selectedMonth) {
+      return `${selectedClient.brand_name || selectedClient.name} - ${format(selectedMonth, 'MMMM yyyy')}`;
+    }
+    if (selectedClient) {
+      return selectedClient.brand_name || selectedClient.name;
+    }
+    return 'Orders';
+  };
+
+  const getHeaderSubtitle = () => {
+    if (selectedClient && selectedMonth) {
+      const monthOrders = getOrdersForMonth(selectedMonth);
+      return `${monthOrders.length} orders`;
+    }
+    if (selectedClient) {
+      const clientOrders = getOrdersForClient(selectedClient.id);
+      return `${clientOrders.length} orders total - Select a month`;
+    }
+    return 'Select a client to view orders';
+  };
+
   if (authLoading || !user) {
     return null;
   }
+
+  const clientOrders = selectedClient ? getOrdersForClient(selectedClient.id) : [];
+  const monthOrders = selectedMonth ? getOrdersForMonth(selectedMonth) : [];
 
   return (
     <DashboardLayout>
@@ -92,23 +138,21 @@ export default function Orders() {
         {/* Header */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            {selectedClient && (
+            {(selectedClient || selectedMonth) && (
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setSelectedClient(null)}
+                onClick={handleBackClick}
               >
                 <ArrowLeft className="h-5 w-5" />
               </Button>
             )}
             <div>
               <h1 className="text-2xl font-bold tracking-tight">
-                {selectedClient ? (selectedClient.brand_name || selectedClient.name) : 'Orders'}
+                {getHeaderTitle()}
               </h1>
               <p className="text-muted-foreground">
-                {selectedClient
-                  ? `${getOrderCountForClient(selectedClient.id)} orders`
-                  : 'Select a client to view orders'}
+                {getHeaderSubtitle()}
               </p>
             </div>
           </div>
@@ -122,7 +166,12 @@ export default function Orders() {
           )}
         </div>
 
-        {/* Search */}
+        {/* Live Activity Feed - Show when client is selected */}
+        {selectedClient && recentUpdates.length > 0 && (
+          <LiveActivityFeed updates={recentUpdates} />
+        )}
+
+        {/* Search - Only show on client selection view */}
         {!selectedClient && (
           <div className="relative max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -136,15 +185,18 @@ export default function Orders() {
         )}
 
         {/* Content */}
-        {isLoading ? (
+        {isLoading || ordersLoading ? (
           <div className="grid gap-4 grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {[...Array(8)].map((_, i) => (
               <Skeleton key={i} className="aspect-[4/3]" />
             ))}
           </div>
+        ) : selectedClient && selectedMonth ? (
+          /* Kanban Board View - Filtered by month */
+          <OrderKanban orders={monthOrders} onOrderUpdated={refetch} />
         ) : selectedClient ? (
-          /* Kanban Board View */
-          <OrderKanban orders={getOrdersForClient(selectedClient.id)} onOrderUpdated={fetchData} />
+          /* Month Selection View */
+          <MonthSelector orders={clientOrders} onSelectMonth={setSelectedMonth} />
         ) : filteredClients.length === 0 ? (
           /* Empty State */
           <div className="flex flex-col items-center justify-center py-12">
@@ -175,7 +227,7 @@ export default function Orders() {
         client={logoUploadClient}
         open={!!logoUploadClient}
         onOpenChange={(open) => !open && setLogoUploadClient(null)}
-        onSuccess={fetchData}
+        onSuccess={fetchClients}
       />
     </DashboardLayout>
   );
