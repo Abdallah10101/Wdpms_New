@@ -292,22 +292,26 @@ export default function OrderDetail() {
               </CardContent>
             </Card>
 
-            {/* Invoices */}
-            <Card>
-              <CardContent className="pt-6">
-                <OrderInvoices orderId={order.id} />
-              </CardContent>
-            </Card>
+            {/* Invoices - Admin/Team only */}
+            {(role === 'admin' || role === 'team') && (
+              <Card>
+                <CardContent className="pt-6">
+                  <OrderInvoices orderId={order.id} />
+                </CardContent>
+              </Card>
+            )}
           </div>
 
           {/* Right Column - Tasks & History */}
           <div className="space-y-6">
-            {/* To Do List */}
-            <Card>
-              <CardContent className="pt-6">
-                <OrderTasks orderId={order.id} />
-              </CardContent>
-            </Card>
+            {/* To Do List - Admin/Team only */}
+            {(role === 'admin' || role === 'team') && (
+              <Card>
+                <CardContent className="pt-6">
+                  <OrderTasks orderId={order.id} />
+                </CardContent>
+              </Card>
+            )}
 
             {/* Stage History */}
             <Card>
