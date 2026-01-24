@@ -28,6 +28,7 @@ import {
   Calculator,
   FolderArchive,
 } from 'lucide-react';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -247,6 +248,8 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <Menu className="h-5 w-5" />
           </Button>
           <div className="flex-1" />
+          {/* Notification bell for clients */}
+          {role === 'client' && <NotificationBell />}
         </header>
 
         {/* Page content */}
