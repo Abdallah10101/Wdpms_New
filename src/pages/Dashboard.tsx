@@ -18,6 +18,7 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { PRODUCTION_STAGES, type ProductionStage, type Order } from '@/lib/types';
+import { OverviewKanban } from '@/components/dashboard/OverviewKanban';
 
 interface DashboardStats {
   totalOrders: number;
@@ -239,7 +240,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Recent Orders */}
+        {/* Overview Kanban */}
+        <OverviewKanban />
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
