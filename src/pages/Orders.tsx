@@ -11,10 +11,10 @@ import { Plus, Search, ArrowLeft, Package } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 import type { Order, Client } from '@/lib/types';
 import { ClientCard } from '@/components/orders/ClientCard';
-import { OrderKanban } from '@/components/orders/OrderKanban';
 import { ClientLogoUpload } from '@/components/orders/ClientLogoUpload';
 import { MonthSelector } from '@/components/orders/MonthSelector';
 import { LiveActivityFeed } from '@/components/orders/LiveActivityFeed';
+import { OrderMonthView } from '@/components/orders/OrderMonthView';
 import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 
 export default function Orders() {
@@ -192,8 +192,13 @@ export default function Orders() {
             ))}
           </div>
         ) : selectedClient && selectedMonth ? (
-          /* Kanban Board View - Filtered by month */
-          <OrderKanban orders={monthOrders} onOrderUpdated={refetch} />
+          /* Tabbed Month View - Production & Previous Work */
+          <OrderMonthView 
+            orders={monthOrders} 
+            clientId={selectedClient.id}
+            month={selectedMonth}
+            onOrderUpdated={refetch} 
+          />
         ) : selectedClient ? (
           /* Month Selection View */
           <MonthSelector orders={clientOrders} onSelectMonth={setSelectedMonth} />
