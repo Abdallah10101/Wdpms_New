@@ -41,7 +41,11 @@ export default function Dashboard() {
     if (!authLoading && !user) {
       navigate('/auth');
     }
-  }, [user, authLoading, navigate]);
+    // Redirect clients to their dedicated portal
+    if (!authLoading && role === 'client') {
+      navigate('/portal');
+    }
+  }, [user, authLoading, role, navigate]);
 
   useEffect(() => {
     if (user && role) {

@@ -45,13 +45,19 @@ const navItems: NavItem[] = [
     label: 'Dashboard',
     href: '/dashboard',
     icon: <LayoutDashboard className="h-5 w-5" />,
-    roles: ['admin', 'team', 'client'],
+    roles: ['admin', 'team'],
+  },
+  {
+    label: 'My Portal',
+    href: '/portal',
+    icon: <LayoutDashboard className="h-5 w-5" />,
+    roles: ['client'],
   },
   {
     label: 'Orders',
     href: '/orders',
     icon: <Package className="h-5 w-5" />,
-    roles: ['admin', 'team', 'client'],
+    roles: ['admin', 'team'],
   },
   {
     label: 'Clients',
@@ -60,10 +66,16 @@ const navItems: NavItem[] = [
     roles: ['admin', 'team'],
   },
   {
+    label: 'My Files',
+    href: '/files',
+    icon: <FolderArchive className="h-5 w-5" />,
+    roles: ['client'],
+  },
+  {
     label: 'Client Files',
     href: '/files',
     icon: <FolderArchive className="h-5 w-5" />,
-    roles: ['admin', 'team', 'client'],
+    roles: ['admin', 'team'],
   },
   {
     label: 'Leads',
