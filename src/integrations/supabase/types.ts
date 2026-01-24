@@ -14,6 +14,76 @@ export type Database = {
   }
   public: {
     Tables: {
+      client_archive_files: {
+        Row: {
+          archived_at: string
+          archived_by: string | null
+          category: string | null
+          client_id: string
+          delivery_month: string | null
+          file_name: string
+          file_path: string
+          file_size: number | null
+          file_type: string | null
+          id: string
+          order_id: string | null
+          order_number: string | null
+          original_file_id: string | null
+        }
+        Insert: {
+          archived_at?: string
+          archived_by?: string | null
+          category?: string | null
+          client_id: string
+          delivery_month?: string | null
+          file_name: string
+          file_path: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          order_id?: string | null
+          order_number?: string | null
+          original_file_id?: string | null
+        }
+        Update: {
+          archived_at?: string
+          archived_by?: string | null
+          category?: string | null
+          client_id?: string
+          delivery_month?: string | null
+          file_name?: string
+          file_path?: string
+          file_size?: number | null
+          file_type?: string | null
+          id?: string
+          order_id?: string | null
+          order_number?: string | null
+          original_file_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_archive_files_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_archive_files_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_archive_files_original_file_id_fkey"
+            columns: ["original_file_id"]
+            isOneToOne: false
+            referencedRelation: "order_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       clients: {
         Row: {
           address: string | null
