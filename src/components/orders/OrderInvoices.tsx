@@ -101,7 +101,7 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
 
       toast({
         title: 'Invoice uploaded',
-        description: `${slot === 'invoice_1' ? 'Invoice 1' : 'Invoice 2'} has been uploaded successfully.`,
+        description: `${slot === 'invoice_1' ? 'Cost Invoice' : 'Client Invoice'} has been uploaded successfully.`,
       });
 
       fetchInvoices();
@@ -261,12 +261,12 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
       </h3>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Invoice 1</label>
-          {renderSlot('invoice_1', 'Invoice 1')}
+          <label className="text-sm font-medium text-muted-foreground">Cost Invoice</label>
+          {renderSlot('invoice_1', 'Cost Invoice')}
         </div>
         <div className="space-y-2">
-          <label className="text-sm font-medium text-muted-foreground">Invoice 2</label>
-          {renderSlot('invoice_2', 'Invoice 2')}
+          <label className="text-sm font-medium text-muted-foreground">Client Invoice</label>
+          {renderSlot('invoice_2', 'Client Invoice')}
         </div>
       </div>
     </div>
