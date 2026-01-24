@@ -22,7 +22,7 @@ import {
   Truck,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
-import { PRODUCTION_STAGES, getStageProgress, type Order, type OrderNote, type OrderFile } from '@/lib/types';
+import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, type Order, type OrderNote, type OrderFile } from '@/lib/types';
 
 interface ClientData {
   id: string;
@@ -286,8 +286,7 @@ export default function ClientPortal() {
               <div className="grid gap-4">
                 {activeOrders.map((order) => {
                   const stageConfig = getStageConfig(order.current_stage);
-                  const progress = getStageProgress(order.current_stage);
-                  
+                  const progress = getClientStageProgress(order.current_stage);
                   return (
                     <Card key={order.id} className="overflow-hidden">
                       <CardContent className="p-6">
@@ -335,12 +334,16 @@ export default function ClientPortal() {
                           </Button>
                         </div>
 
-                        {/* Stage Progress Visualization */}
+                        {/* Stage Progress Visualization - Client View (excludes not_started and sample) */}
                         <div className="mt-6 overflow-x-auto">
                           <div className="flex items-center gap-1 min-w-max">
-                            {PRODUCTION_STAGES.map((stage, index) => {
+                            {CLIENT_VISIBLE_STAGES.map((stage, index) => {
                               const isActive = order.current_stage === stage.value;
-                              const isPast = PRODUCTION_STAGES.findIndex(s => s.value === order.current_stage) > index;
+                              // For internal stages (not_started, sample), treat as not yet reached
+                              const currentIndex = CLIENT_VISIBLE_STAGES.findIndex(s => s.value === order.current_stage);
+                              const isPast = currentIndex > index;
+                              // If order is in not_started or sample, nothing is past yet
+                              const isInInternalStage = order.current_stage === 'not_started' || order.current_stage === 'sample';
                               
                               return (
                                 <div key={stage.value} className="flex items-center">
@@ -348,28 +351,28 @@ export default function ClientPortal() {
                                     className={`
                                       flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium
                                       ${isActive ? `${stage.color} text-white ring-2 ring-offset-2 ring-primary` : ''}
-                                      ${isPast ? 'bg-primary text-primary-foreground' : ''}
-                                      ${!isActive && !isPast ? 'bg-muted text-muted-foreground' : ''}
+                                      ${isPast && !isInInternalStage ? 'bg-primary text-primary-foreground' : ''}
+                                      ${!isActive && (!isPast || isInInternalStage) ? 'bg-muted text-muted-foreground' : ''}
                                     `}
                                   >
-                                    {isPast ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                                    {isPast && !isInInternalStage ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
                                   </div>
-                                  {index < PRODUCTION_STAGES.length - 1 && (
-                                    <div className={`w-6 h-0.5 ${isPast ? 'bg-primary' : 'bg-muted'}`} />
+                                  {index < CLIENT_VISIBLE_STAGES.length - 1 && (
+                                    <div className={`w-6 h-0.5 ${isPast && !isInInternalStage ? 'bg-primary' : 'bg-muted'}`} />
                                   )}
                                 </div>
                               );
                             })}
                           </div>
                           <div className="flex items-center gap-1 min-w-max mt-1">
-                            {PRODUCTION_STAGES.map((stage, index) => (
+                            {CLIENT_VISIBLE_STAGES.map((stage, index) => (
                               <div key={stage.value} className="flex items-center">
                                 <div className="w-8 text-center">
                                   <span className="text-[10px] text-muted-foreground leading-none">
                                     {stage.label.slice(0, 3)}
                                   </span>
                                 </div>
-                                {index < PRODUCTION_STAGES.length - 1 && <div className="w-6" />}
+                                {index < CLIENT_VISIBLE_STAGES.length - 1 && <div className="w-6" />}
                               </div>
                             ))}
                           </div>

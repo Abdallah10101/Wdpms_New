@@ -230,6 +230,11 @@ export const SUPPLIER_CATEGORY_CONFIG: { value: SupplierCategory; label: string;
   { value: 'other', label: 'Other', color: 'bg-gray-500' },
 ];
 
+// Client-visible stages (excludes not_started and sample - internal stages only)
+export const CLIENT_VISIBLE_STAGES = PRODUCTION_STAGES.filter(
+  s => s.value !== 'not_started' && s.value !== 'sample'
+);
+
 export function getStageIndex(stage: ProductionStage): number {
   return PRODUCTION_STAGES.findIndex(s => s.value === stage);
 }
@@ -237,4 +242,15 @@ export function getStageIndex(stage: ProductionStage): number {
 export function getStageProgress(stage: ProductionStage): number {
   const index = getStageIndex(stage);
   return Math.round(((index + 1) / PRODUCTION_STAGES.length) * 100);
+}
+
+// Client-specific progress (based on visible stages only)
+export function getClientStageProgress(stage: ProductionStage): number {
+  // For internal stages, show 0% to clients
+  if (stage === 'not_started' || stage === 'sample') {
+    return 0;
+  }
+  const index = CLIENT_VISIBLE_STAGES.findIndex(s => s.value === stage);
+  if (index === -1) return 0;
+  return Math.round(((index + 1) / CLIENT_VISIBLE_STAGES.length) * 100);
 }
