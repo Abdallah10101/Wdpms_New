@@ -39,6 +39,7 @@ import { OrderHeader } from '@/components/orders/OrderHeader';
 import { OrderDetails } from '@/components/orders/OrderDetails';
 import { OrderNotes } from '@/components/orders/OrderNotes';
 import { OrderTasks } from '@/components/orders/OrderTasks';
+import { OrderInvoices } from '@/components/orders/OrderInvoices';
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -288,6 +289,13 @@ export default function OrderDetail() {
             <Card>
               <CardContent className="pt-6">
                 <OrderNotes orderId={order.id} />
+              </CardContent>
+            </Card>
+
+            {/* Invoices */}
+            <Card>
+              <CardContent className="pt-6">
+                <OrderInvoices orderId={order.id} />
               </CardContent>
             </Card>
           </div>
