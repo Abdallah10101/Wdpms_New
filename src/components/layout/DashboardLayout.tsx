@@ -26,6 +26,7 @@ import {
   UserPlus,
   Truck,
   Calculator,
+  FolderArchive,
 } from 'lucide-react';
 
 interface DashboardLayoutProps {
@@ -57,6 +58,12 @@ const navItems: NavItem[] = [
     href: '/clients',
     icon: <Building2 className="h-5 w-5" />,
     roles: ['admin', 'team'],
+  },
+  {
+    label: 'Client Files',
+    href: '/files',
+    icon: <FolderArchive className="h-5 w-5" />,
+    roles: ['admin', 'team', 'client'],
   },
   {
     label: 'Leads',
