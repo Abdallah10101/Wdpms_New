@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
+import ClientPortal from "./pages/ClientPortal";
 import Orders from "./pages/Orders";
 import NewOrder from "./pages/NewOrder";
 import OrderDetail from "./pages/OrderDetail";
@@ -33,6 +34,7 @@ const App = () => (
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/portal" element={<ClientPortal />} />
             <Route path="/orders" element={<Orders />} />
             <Route path="/orders/new" element={<NewOrder />} />
             <Route path="/orders/:id" element={<OrderDetail />} />
