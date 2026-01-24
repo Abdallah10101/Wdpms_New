@@ -38,7 +38,11 @@ export default function Orders() {
     if (!authLoading && !user) {
       navigate('/auth');
     }
-  }, [user, authLoading, navigate]);
+    // Redirect clients to their portal - this page is for admin/team only
+    if (!authLoading && role === 'client') {
+      navigate('/portal', { replace: true });
+    }
+  }, [user, authLoading, role, navigate]);
 
   useEffect(() => {
     if (user && role) {
