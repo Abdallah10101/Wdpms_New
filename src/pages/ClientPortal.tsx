@@ -38,6 +38,7 @@ export default function ClientPortal() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [recentNotes, setRecentNotes] = useState<(OrderNote & { order?: Order })[]>([]);
   const [archivedFiles, setArchivedFiles] = useState<any[]>([]);
+  const [clientInvoices, setClientInvoices] = useState<OrderFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Redirect non-clients to dashboard
@@ -97,6 +98,23 @@ export default function ClientPortal() {
             order: ordersData.find(o => o.id === note.order_id),
           }));
           setRecentNotes(notesWithOrders as any);
+        }
+
+        // Fetch client invoices (invoice_2 category only)
+        const { data: invoicesData, error: invoicesError } = await supabase
+          .from('order_files')
+          .select('*')
+          .in('order_id', orderIds)
+          .eq('category', 'invoice_2')
+          .order('created_at', { ascending: false });
+
+        if (!invoicesError && invoicesData) {
+          // Attach order info to invoices
+          const invoicesWithOrders = invoicesData.map(inv => ({
+            ...inv,
+            order: ordersData.find(o => o.id === inv.order_id),
+          }));
+          setClientInvoices(invoicesWithOrders as any);
         }
       }
 
@@ -245,13 +263,13 @@ export default function ClientPortal() {
               <CheckCircle2 className="h-4 w-4" />
               Completed ({completedOrders.length})
             </TabsTrigger>
+            <TabsTrigger value="invoices" className="flex items-center gap-2">
+              <FileText className="h-4 w-4" />
+              Invoices ({clientInvoices.length})
+            </TabsTrigger>
             <TabsTrigger value="updates" className="flex items-center gap-2">
               <MessageSquare className="h-4 w-4" />
               Updates ({recentNotes.length})
-            </TabsTrigger>
-            <TabsTrigger value="files" className="flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Files
             </TabsTrigger>
           </TabsList>
 
@@ -447,44 +465,39 @@ export default function ClientPortal() {
             )}
           </TabsContent>
 
-          {/* Files Tab */}
-          <TabsContent value="files">
-            {archivedFiles.length === 0 ? (
+          {/* Invoices Tab */}
+          <TabsContent value="invoices">
+            {clientInvoices.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <FileText className="h-12 w-12 text-muted-foreground/50" />
-                  <p className="mt-4 text-muted-foreground">No files archived yet</p>
+                  <p className="mt-4 text-muted-foreground">No invoices available yet</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {archivedFiles.map((file) => (
-                  <Card key={file.id}>
+                {clientInvoices.map((invoice: any) => (
+                  <Card key={invoice.id}>
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
-                        <div className="rounded-lg bg-muted p-2">
-                          <FileText className="h-5 w-5" />
+                        <div className="rounded-lg bg-primary/10 p-2">
+                          <FileText className="h-5 w-5 text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{file.file_name}</p>
-                          {file.order_number && (
-                            <p className="text-xs text-muted-foreground">{file.order_number}</p>
+                          <p className="font-medium text-sm truncate">{invoice.file_name}</p>
+                          {invoice.order && (
+                            <p className="text-xs text-muted-foreground">
+                              {invoice.order.product_name}
+                            </p>
                           )}
-                          <div className="flex items-center gap-2 mt-1">
-                            {file.category && (
-                              <Badge variant="secondary" className="text-xs">
-                                {file.category}
-                              </Badge>
-                            )}
-                            <span className="text-xs text-muted-foreground">
-                              {file.delivery_month}
-                            </span>
-                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {format(new Date(invoice.created_at), 'MMM d, yyyy')}
+                          </p>
                         </div>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDownload(file.file_path, file.file_name)}
+                          onClick={() => handleDownload(invoice.file_path, invoice.file_name)}
                         >
                           <Download className="h-4 w-4" />
                         </Button>
