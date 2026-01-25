@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -16,7 +17,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2, Printer, Sparkles, Waves } from 'lucide-react';
 import { PRIORITY_CONFIG, type Client, type OrderPriority } from '@/lib/types';
 
 export default function NewOrder() {
@@ -38,6 +39,9 @@ export default function NewOrder() {
     quantity: 1,
     delivery_date: '',
     priority: 'medium' as OrderPriority,
+    has_printing: false,
+    has_embroidery: false,
+    has_wash_house: false,
   });
 
   useEffect(() => {
@@ -89,6 +93,9 @@ export default function NewOrder() {
           delivery_date: formData.delivery_date || null,
           priority: formData.priority,
           created_by: user?.id,
+          has_printing: formData.has_printing,
+          has_embroidery: formData.has_embroidery,
+          has_wash_house: formData.has_wash_house,
         } as any)
         .select()
         .single();
@@ -277,6 +284,64 @@ export default function NewOrder() {
                       setFormData({ ...formData, delivery_date: e.target.value })
                     }
                   />
+                </div>
+
+                {/* Process Types */}
+                <div className="space-y-3 sm:col-span-2">
+                  <Label>Process Types</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Select which processes this product will go through
+                  </p>
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="has_printing"
+                        checked={formData.has_printing}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, has_printing: checked === true })
+                        }
+                      />
+                      <label
+                        htmlFor="has_printing"
+                        className="flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        <Printer className="h-4 w-4 text-blue-500" />
+                        Printing
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="has_embroidery"
+                        checked={formData.has_embroidery}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, has_embroidery: checked === true })
+                        }
+                      />
+                      <label
+                        htmlFor="has_embroidery"
+                        className="flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        <Sparkles className="h-4 w-4 text-purple-500" />
+                        Embroidery
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="has_wash_house"
+                        checked={formData.has_wash_house}
+                        onCheckedChange={(checked) =>
+                          setFormData({ ...formData, has_wash_house: checked === true })
+                        }
+                      />
+                      <label
+                        htmlFor="has_wash_house"
+                        className="flex items-center gap-2 text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        <Waves className="h-4 w-4 text-cyan-500" />
+                        Wash House
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
 

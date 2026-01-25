@@ -75,8 +75,12 @@ export interface Order {
   created_by?: string;
   created_at: string;
   updated_at: string;
+  // Process types
+  has_printing?: boolean;
+  has_embroidery?: boolean;
+  has_wash_house?: boolean;
   // Joined fields
-  client?: Client;
+  client?: Client | { name: string; brand_name?: string; id?: string };
 }
 
 export interface OrderAssignment {

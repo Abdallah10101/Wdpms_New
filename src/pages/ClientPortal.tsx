@@ -20,6 +20,9 @@ import {
   Eye,
   ArrowRight,
   Truck,
+  Printer,
+  Sparkles,
+  Waves,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, type Order, type OrderNote, type OrderFile } from '@/lib/types';
@@ -316,6 +319,29 @@ export default function ClientPortal() {
                                 </span>
                               )}
                             </div>
+                            {/* Process Types */}
+                            {(order.has_printing || order.has_embroidery || order.has_wash_house) && (
+                              <div className="flex flex-wrap gap-1.5 mt-2">
+                                {order.has_printing && (
+                                  <Badge variant="outline" className="text-xs flex items-center gap-1 px-2 py-0.5">
+                                    <Printer className="h-3 w-3 text-blue-500" />
+                                    Printing
+                                  </Badge>
+                                )}
+                                {order.has_embroidery && (
+                                  <Badge variant="outline" className="text-xs flex items-center gap-1 px-2 py-0.5">
+                                    <Sparkles className="h-3 w-3 text-purple-500" />
+                                    Embroidery
+                                  </Badge>
+                                )}
+                                {order.has_wash_house && (
+                                  <Badge variant="outline" className="text-xs flex items-center gap-1 px-2 py-0.5">
+                                    <Waves className="h-3 w-3 text-cyan-500" />
+                                    Wash House
+                                  </Badge>
+                                )}
+                              </div>
+                            )}
                           </div>
                           
                           <div className="lg:w-48">
