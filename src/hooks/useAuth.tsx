@@ -121,9 +121,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // Clear state immediately for instant UI feedback
     setProfile(null);
     setRole(null);
+    setUser(null);
+    setSession(null);
+    
+    // Sign out from Supabase in background - don't wait for it
+    // This prevents lag if session is already invalid
+    supabase.auth.signOut().catch(() => {
+      // Ignore errors - we've already cleared local state
+    });
   };
 
   const refreshProfile = async () => {
