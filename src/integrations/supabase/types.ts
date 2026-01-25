@@ -447,6 +447,9 @@ export type Database = {
           current_stage: Database["public"]["Enums"]["production_stage"]
           delivery_date: string | null
           fabric: string | null
+          has_embroidery: boolean
+          has_printing: boolean
+          has_wash_house: boolean
           id: string
           order_number: string
           pieces_sent: number | null
@@ -466,6 +469,9 @@ export type Database = {
           current_stage?: Database["public"]["Enums"]["production_stage"]
           delivery_date?: string | null
           fabric?: string | null
+          has_embroidery?: boolean
+          has_printing?: boolean
+          has_wash_house?: boolean
           id?: string
           order_number: string
           pieces_sent?: number | null
@@ -485,6 +491,9 @@ export type Database = {
           current_stage?: Database["public"]["Enums"]["production_stage"]
           delivery_date?: string | null
           fabric?: string | null
+          has_embroidery?: boolean
+          has_printing?: boolean
+          has_wash_house?: boolean
           id?: string
           order_number?: string
           pieces_sent?: number | null

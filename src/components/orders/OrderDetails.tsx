@@ -3,9 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Pencil, Save, X } from 'lucide-react';
+import { Pencil, Save, X, Printer, Sparkles, Waves } from 'lucide-react';
 import type { Order } from '@/lib/types';
 
 interface OrderDetailsProps {
@@ -26,6 +28,9 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
     supplier: order.supplier || '',
     quantity: order.quantity || 1,
     pieces_sent: order.pieces_sent || 0,
+    has_printing: order.has_printing || false,
+    has_embroidery: order.has_embroidery || false,
+    has_wash_house: order.has_wash_house || false,
   });
 
   const client = order.client as any;
@@ -43,6 +48,9 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
           supplier: formData.supplier || null,
           quantity: formData.quantity,
           pieces_sent: formData.pieces_sent,
+          has_printing: formData.has_printing,
+          has_embroidery: formData.has_embroidery,
+          has_wash_house: formData.has_wash_house,
         })
         .eq('id', order.id);
 
@@ -76,6 +84,9 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
       supplier: order.supplier || '',
       quantity: order.quantity || 1,
       pieces_sent: order.pieces_sent || 0,
+      has_printing: order.has_printing || false,
+      has_embroidery: order.has_embroidery || false,
+      has_wash_house: order.has_wash_house || false,
     });
     setIsEditing(false);
   };
@@ -171,6 +182,64 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
               />
             </div>
           </div>
+
+          {/* Process Types */}
+          <div className="space-y-3">
+            <Label>Process Types</Label>
+            <p className="text-xs text-muted-foreground">
+              Select which processes this product goes through
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit_has_printing"
+                  checked={formData.has_printing}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, has_printing: checked === true })
+                  }
+                />
+                <label
+                  htmlFor="edit_has_printing"
+                  className="flex items-center gap-2 text-sm font-medium leading-none cursor-pointer"
+                >
+                  <Printer className="h-4 w-4 text-blue-500" />
+                  Printing
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit_has_embroidery"
+                  checked={formData.has_embroidery}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, has_embroidery: checked === true })
+                  }
+                />
+                <label
+                  htmlFor="edit_has_embroidery"
+                  className="flex items-center gap-2 text-sm font-medium leading-none cursor-pointer"
+                >
+                  <Sparkles className="h-4 w-4 text-purple-500" />
+                  Embroidery
+                </label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="edit_has_wash_house"
+                  checked={formData.has_wash_house}
+                  onCheckedChange={(checked) =>
+                    setFormData({ ...formData, has_wash_house: checked === true })
+                  }
+                />
+                <label
+                  htmlFor="edit_has_wash_house"
+                  className="flex items-center gap-2 text-sm font-medium leading-none cursor-pointer"
+                >
+                  <Waves className="h-4 w-4 text-cyan-500" />
+                  Wash House
+                </label>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -225,6 +294,33 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* Process Types */}
+      {(order.has_printing || order.has_embroidery || order.has_wash_house) && (
+        <div className="space-y-2">
+          <h4 className="font-semibold text-sm">Process Types :</h4>
+          <div className="flex flex-wrap gap-2">
+            {order.has_printing && (
+              <Badge variant="secondary" className="flex items-center gap-1.5">
+                <Printer className="h-3 w-3 text-blue-500" />
+                Printing
+              </Badge>
+            )}
+            {order.has_embroidery && (
+              <Badge variant="secondary" className="flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-purple-500" />
+                Embroidery
+              </Badge>
+            )}
+            {order.has_wash_house && (
+              <Badge variant="secondary" className="flex items-center gap-1.5">
+                <Waves className="h-3 w-3 text-cyan-500" />
+                Wash House
+              </Badge>
+            )}
+          </div>
         </div>
       )}
 
