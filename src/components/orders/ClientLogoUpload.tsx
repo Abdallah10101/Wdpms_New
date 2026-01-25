@@ -33,19 +33,19 @@ export function ClientLogoUpload({ client, open, onOpenChange, onSuccess }: Clie
 
     setIsUploading(true);
     try {
-      // Upload to Supabase storage
+      // Upload to Supabase storage (client-logos bucket)
       const fileExt = file.name.split('.').pop();
-      const fileName = `client-logos/${client.id}.${fileExt}`;
+      const fileName = `${client.id}.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('order-files')
+        .from('client-logos')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // Get public URL
+      // Get public URL from client-logos bucket
       const { data: urlData } = supabase.storage
-        .from('order-files')
+        .from('client-logos')
         .getPublicUrl(fileName);
 
       // Update client with logo URL
