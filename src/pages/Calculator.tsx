@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Printer, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
-
+import { Printer, Plus, X, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { CreateInvoiceDialog } from "@/components/invoices/CreateInvoiceDialog";
+import { useToast } from "@/hooks/use-toast";
 type Currency = "TRY" | "EUR";
 
 interface Accessory {
@@ -38,12 +39,16 @@ const ACCESSORY_TYPES = [
 ];
 
 export default function Calculator() {
+  const { toast } = useToast();
+  
+  // Invoice Dialog
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  
   // Order Details
   const [orderName, setOrderName] = useState("");
   const [quantity, setQuantity] = useState(100);
   const [displayCurrency, setDisplayCurrency] = useState<Currency>("TRY");
   const [exchangeRate, setExchangeRate] = useState(50.43);
-
   // Base Costs (TRY)
   const [fabricCost, setFabricCost] = useState(0);
   const [productionCost, setProductionCost] = useState(0);
@@ -647,19 +652,61 @@ export default function Calculator() {
                   </CardContent>
                 </Card>
 
-                {/* Print Button */}
-                <Button
-                  onClick={handlePrint}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg"
-                >
-                  <Printer className="h-4 w-4 mr-2" />
-                  Print Report
-                </Button>
+                {/* Action Buttons */}
+                <div className="space-y-3">
+                  <Button
+                    onClick={() => setInvoiceDialogOpen(true)}
+                    className="w-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg"
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Create Invoice
+                  </Button>
+                  <Button
+                    onClick={handlePrint}
+                    variant="outline"
+                    className="w-full border-orange-300 text-orange-600 hover:bg-orange-50"
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print Report
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Create Invoice Dialog */}
+      <CreateInvoiceDialog
+        open={invoiceDialogOpen}
+        onOpenChange={setInvoiceDialogOpen}
+        calculatorData={{
+          orderName,
+          quantity,
+          exchangeRate,
+          fabricCost,
+          productionCost,
+          accessoriesPerPiece: calculations.accessoriesPerPiece,
+          patternCostPerPiece,
+          setupPerPiece: calculations.setupPerPiece,
+          embroidery,
+          printing,
+          digitalPrinting,
+          extraFees,
+          washing,
+          profitInTRY: calculations.profitInTRY,
+          totalCostTRY: calculations.totalCostTRY,
+          wholesalePriceTRY: calculations.wholesalePriceTRY,
+          retailPriceTRY: calculations.retailPriceTRY,
+          accessories,
+        }}
+        onSuccess={() => {
+          toast({
+            title: "Invoice Created",
+            description: "Your invoice has been saved successfully.",
+          });
+        }}
+      />
     </DashboardLayout>
   );
 }

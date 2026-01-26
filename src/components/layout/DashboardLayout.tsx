@@ -27,6 +27,7 @@ import {
   Truck,
   Calculator,
   FolderArchive,
+  FileText,
 } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 
@@ -106,6 +107,12 @@ const navItems: NavItem[] = [
     label: 'WDS Calculator',
     href: '/calculator',
     icon: <Calculator className="h-5 w-5" />,
+    roles: ['admin', 'team'],
+  },
+  {
+    label: 'Invoices',
+    href: '/invoices',
+    icon: <FileText className="h-5 w-5" />,
     roles: ['admin', 'team'],
   },
   {

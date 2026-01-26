@@ -132,6 +132,129 @@ export type Database = {
         }
         Relationships: []
       }
+      invoices: {
+        Row: {
+          accessories_cost: number
+          accessories_detail: Json | null
+          amount_paid: number
+          client_id: string
+          client_notes: string | null
+          created_at: string
+          created_by: string | null
+          digital_printing_cost: number
+          due_date: string | null
+          embroidery_cost: number
+          exchange_rate: number
+          extra_fees: number
+          fabric_cost: number
+          id: string
+          internal_notes: string | null
+          invoice_number: string
+          order_id: string | null
+          order_name: string
+          paid_at: string | null
+          pattern_cost: number
+          printing_cost: number
+          production_cost: number
+          profit_per_piece: number
+          quantity: number
+          retail_price: number
+          sent_at: string | null
+          setup_cost: number
+          status: Database["public"]["Enums"]["invoice_status"]
+          total_cost_per_piece: number
+          updated_at: string
+          viewed_at: string | null
+          washing_cost: number
+          wholesale_price: number
+        }
+        Insert: {
+          accessories_cost?: number
+          accessories_detail?: Json | null
+          amount_paid?: number
+          client_id: string
+          client_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          digital_printing_cost?: number
+          due_date?: string | null
+          embroidery_cost?: number
+          exchange_rate?: number
+          extra_fees?: number
+          fabric_cost?: number
+          id?: string
+          internal_notes?: string | null
+          invoice_number: string
+          order_id?: string | null
+          order_name: string
+          paid_at?: string | null
+          pattern_cost?: number
+          printing_cost?: number
+          production_cost?: number
+          profit_per_piece?: number
+          quantity?: number
+          retail_price?: number
+          sent_at?: string | null
+          setup_cost?: number
+          status?: Database["public"]["Enums"]["invoice_status"]
+          total_cost_per_piece?: number
+          updated_at?: string
+          viewed_at?: string | null
+          washing_cost?: number
+          wholesale_price?: number
+        }
+        Update: {
+          accessories_cost?: number
+          accessories_detail?: Json | null
+          amount_paid?: number
+          client_id?: string
+          client_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          digital_printing_cost?: number
+          due_date?: string | null
+          embroidery_cost?: number
+          exchange_rate?: number
+          extra_fees?: number
+          fabric_cost?: number
+          id?: string
+          internal_notes?: string | null
+          invoice_number?: string
+          order_id?: string | null
+          order_name?: string
+          paid_at?: string | null
+          pattern_cost?: number
+          printing_cost?: number
+          production_cost?: number
+          profit_per_piece?: number
+          quantity?: number
+          retail_price?: number
+          sent_at?: string | null
+          setup_cost?: number
+          status?: Database["public"]["Enums"]["invoice_status"]
+          total_cost_per_piece?: number
+          updated_at?: string
+          viewed_at?: string | null
+          washing_cost?: number
+          wholesale_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       leads: {
         Row: {
           brand_name: string | null
@@ -674,6 +797,13 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "team" | "client"
+      invoice_status:
+        | "draft"
+        | "sent"
+        | "viewed"
+        | "partially_paid"
+        | "paid"
+        | "overdue"
       lead_status:
         | "new"
         | "contacted"
@@ -834,6 +964,14 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "team", "client"],
+      invoice_status: [
+        "draft",
+        "sent",
+        "viewed",
+        "partially_paid",
+        "paid",
+        "overdue",
+      ],
       lead_status: [
         "new",
         "contacted",

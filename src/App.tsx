@@ -19,6 +19,7 @@ import Team from "./pages/Team";
 import Tasks from "./pages/Tasks";
 import Settings from "./pages/Settings";
 import Calculator from "./pages/Calculator";
+import Invoices from "./pages/Invoices";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ const App = () => (
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/calculator" element={<Calculator />} />
+            <Route path="/invoices" element={<Invoices />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
