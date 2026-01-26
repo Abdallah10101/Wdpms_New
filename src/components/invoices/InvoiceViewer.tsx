@@ -1,12 +1,26 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { Download, Printer, Eye, EyeOff } from 'lucide-react';
+import { Printer, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
+import { supabase } from '@/integrations/supabase/client';
 
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'partially_paid' | 'paid' | 'overdue';
+
+export interface InvoiceItem {
+  id: string;
+  invoice_id: string;
+  order_id: string | null;
+  product_name: string;
+  description: string | null;
+  inclusions: string[];
+  quantity: number;
+  unit_price: number;
+  amount: number;
+  sort_order: number;
+}
 
 export interface Invoice {
   id: string;
@@ -36,6 +50,9 @@ export interface Invoice {
   due_date: string | null;
   internal_notes: string | null;
   client_notes: string | null;
+  terms_and_conditions: string | null;
+  subtotal: number;
+  total: number;
   created_at: string;
   sent_at: string | null;
   viewed_at: string | null;
@@ -43,6 +60,7 @@ export interface Invoice {
   client?: {
     name: string;
     brand_name: string | null;
+    address: string | null;
   };
   order?: {
     order_number: string;
@@ -81,130 +99,189 @@ export function InvoiceViewer({
   open,
   onOpenChange,
   isClientView = false,
-  onPrint,
 }: InvoiceViewerProps) {
+  const [items, setItems] = useState<InvoiceItem[]>([]);
+
+  useEffect(() => {
+    if (invoice && open) {
+      fetchItems();
+    }
+  }, [invoice, open]);
+
+  const fetchItems = async () => {
+    if (!invoice) return;
+    
+    const { data, error } = await supabase
+      .from('invoice_items')
+      .select('*')
+      .eq('invoice_id', invoice.id)
+      .order('sort_order');
+
+    if (!error && data) {
+      setItems(data as InvoiceItem[]);
+    }
+  };
+
   if (!invoice) return null;
 
-  const formatCurrency = (value: number) => `₺${value.toFixed(2)}`;
-  const formatEUR = (value: number) => `€${(value / invoice.exchange_rate).toFixed(2)}`;
+  const formatEUR = (value: number) => `€${value.toFixed(2)}`;
+  
+  // Calculate totals from items
+  const subtotal = items.length > 0 
+    ? items.reduce((sum, item) => sum + item.amount, 0)
+    : invoice.subtotal || (invoice.wholesale_price * invoice.quantity);
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
     const clientName = invoice.client?.brand_name || invoice.client?.name || 'Client';
+    const clientAddress = invoice.client?.address || '';
     
-    // Generate HTML based on view type
+    // Generate line items HTML
+    const itemsHtml = items.length > 0 
+      ? items.map(item => `
+          <tr>
+            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; width: 60px; vertical-align: top; font-weight: 500;">${item.quantity}</td>
+            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; vertical-align: top;">
+              <div style="font-weight: 600;">${item.product_name}</div>
+              ${item.inclusions && item.inclusions.length > 0 ? `
+                <div style="color: #78716c; font-size: 13px; margin-top: 6px;">
+                  <div>includes :</div>
+                  ${item.inclusions.map(inc => `<div>- ${inc}</div>`).join('')}
+                </div>
+              ` : ''}
+            </td>
+            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right; width: 100px; vertical-align: top;">${item.unit_price.toFixed(2)}</td>
+            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right; width: 120px; vertical-align: top; font-weight: 500;">${item.amount.toFixed(2)}</td>
+          </tr>
+        `).join('')
+      : `<tr>
+          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4;">${invoice.quantity}</td>
+          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4;">${invoice.order_name}</td>
+          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${(invoice.wholesale_price).toFixed(2)}</td>
+          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${(invoice.wholesale_price * invoice.quantity).toFixed(2)}</td>
+        </tr>`;
+
+    const termsHtml = invoice.terms_and_conditions 
+      ? invoice.terms_and_conditions.split('\n').map(line => `<div>${line}</div>`).join('')
+      : '';
+    
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
         <title>Invoice ${invoice.invoice_number}</title>
         <style>
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bebas+Neue&family=Great+Vibes&display=swap');
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; background: white; color: #1c1917; }
-          .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; }
-          .logo { font-size: 24px; font-weight: 700; color: #F97316; }
-          .invoice-info { text-align: right; }
-          .invoice-number { font-size: 20px; font-weight: 600; }
-          .status { display: inline-block; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 500; }
-          .client-info { margin-bottom: 32px; padding: 16px; background: #f5f5f4; border-radius: 8px; }
-          .section { margin-bottom: 24px; }
-          .section-title { font-size: 14px; font-weight: 600; color: #F97316; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
-          table { width: 100%; border-collapse: collapse; }
-          th, td { padding: 12px; text-align: left; border-bottom: 1px solid #e7e5e4; }
-          th { font-weight: 500; color: #78716c; font-size: 12px; text-transform: uppercase; }
-          td { font-size: 14px; }
-          .amount { text-align: right; font-weight: 500; }
-          .total-row { background: #f5f5f4; font-weight: 600; }
-          .grand-total { background: linear-gradient(135deg, #F97316 0%, #ea580c 100%); color: white; }
-          .grand-total td { padding: 16px 12px; font-size: 16px; }
-          .notes { margin-top: 32px; padding: 16px; background: #fffbeb; border-radius: 8px; border-left: 4px solid #F97316; }
-          .footer { margin-top: 48px; text-align: center; color: #78716c; font-size: 12px; }
-          @media print { body { padding: 20px; } }
+          body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; background: white; color: #1c1917; font-size: 14px; }
+          .header { margin-bottom: 40px; }
+          .invoice-title { font-family: 'Bebas Neue', sans-serif; font-size: 48px; font-weight: 700; color: #0369a1; text-decoration: underline; text-underline-offset: 8px; }
+          .company-info { margin-top: 16px; font-size: 12px; line-height: 1.6; }
+          .company-name { font-weight: 700; font-size: 13px; }
+          .bill-section { display: flex; justify-content: space-between; margin-bottom: 40px; }
+          .bill-to { flex: 1; }
+          .bill-to-label { color: #0369a1; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+          .invoice-meta { text-align: right; }
+          .invoice-meta-row { display: flex; justify-content: flex-end; gap: 24px; margin-bottom: 4px; }
+          .invoice-meta-label { color: #0369a1; font-weight: 700; font-size: 12px; text-transform: uppercase; }
+          .invoice-meta-value { min-width: 100px; text-align: right; }
+          .divider { height: 3px; background: linear-gradient(90deg, #0369a1, #0369a1 50%, #f59e0b 50%, #f59e0b); margin-bottom: 24px; }
+          table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
+          th { padding: 12px; text-align: left; color: #0369a1; font-weight: 700; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #e7e5e4; }
+          th:nth-child(3), th:nth-child(4) { text-align: right; }
+          .total-section { display: flex; justify-content: flex-end; margin-bottom: 40px; }
+          .total-box { text-align: right; }
+          .total-row { display: flex; justify-content: space-between; gap: 48px; padding: 8px 0; border-bottom: 1px solid #e7e5e4; }
+          .grand-total { font-size: 18px; font-weight: 700; border-bottom: none; padding-top: 12px; }
+          .terms-section { max-width: 400px; margin-left: auto; padding: 20px; border: 1px solid #e7e5e4; }
+          .terms-title { color: #0369a1; font-weight: 700; font-size: 14px; margin-bottom: 12px; text-transform: uppercase; }
+          .terms-content { font-size: 12px; line-height: 1.8; color: #57534e; }
+          .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; }
+          .thank-you { font-family: 'Great Vibes', cursive; font-size: 48px; color: #1e40af; }
+          .signature-note { font-size: 11px; color: #78716c; max-width: 300px; text-align: right; }
+          @media print { 
+            body { padding: 20px; }
+            @page { margin: 20mm; }
+          }
         </style>
       </head>
       <body>
         <div class="header">
-          <div>
-            <div class="logo">WDS</div>
-            <p style="color: #78716c; margin-top: 4px;">WorkDuShop</p>
-          </div>
-          <div class="invoice-info">
-            <div class="invoice-number">${invoice.invoice_number}</div>
-            <p style="color: #78716c; margin-top: 4px;">${format(new Date(invoice.created_at), 'PPP')}</p>
-            ${invoice.due_date ? `<p style="color: #78716c;">Due: ${format(new Date(invoice.due_date), 'PPP')}</p>` : ''}
+          <div class="invoice-title">INVOICE</div>
+          <div class="company-info">
+            <div class="company-name">MOHAMMAD AL SAYED</div>
+            <div>WORKDUSHOP</div>
+            <div>ROSEVELT TEKSTİL İÇ VE DIŞ TİCARET LİMİTED ŞİRKETİ</div>
+            <div>ŞEHREMİNİ MAH. VELET ÇELEBİ SK.</div>
+            <div>NO:9/A FAİTH/İST</div>
+            <div>FAİTH V.D:7352021157</div>
+            <div>MERSİS NO:0735202115700001</div>
           </div>
         </div>
 
-        <div class="client-info">
-          <p style="font-size: 12px; color: #78716c; text-transform: uppercase;">Bill To</p>
-          <p style="font-size: 18px; font-weight: 600; margin-top: 4px;">${clientName}</p>
+        <div class="bill-section">
+          <div class="bill-to">
+            <div class="bill-to-label">BILL TO</div>
+            <div style="font-weight: 500;">${clientName}</div>
+            ${clientAddress ? `<div>${clientAddress}</div>` : ''}
+          </div>
+          <div class="invoice-meta">
+            <div class="invoice-meta-row">
+              <span class="invoice-meta-label">INVOICE #</span>
+              <span class="invoice-meta-value">${invoice.invoice_number.replace('INV-', '').replace(/-/g, '')}</span>
+            </div>
+            <div class="invoice-meta-row">
+              <span class="invoice-meta-label">INVOICE DATE</span>
+              <span class="invoice-meta-value">${format(new Date(invoice.created_at), 'dd/MM/yyyy')}</span>
+            </div>
+            ${invoice.due_date ? `
+            <div class="invoice-meta-row">
+              <span class="invoice-meta-label">DUE DATE</span>
+              <span class="invoice-meta-value">${format(new Date(invoice.due_date), 'dd/MM/yyyy')}</span>
+            </div>
+            ` : ''}
+          </div>
         </div>
 
-        <div class="section">
-          <div class="section-title">Order Details</div>
-          <table>
+        <div class="divider"></div>
+
+        <table>
+          <thead>
             <tr>
-              <td><strong>Order:</strong> ${invoice.order?.order_number || 'N/A'}</td>
-              <td><strong>Product:</strong> ${invoice.order_name}</td>
-              <td><strong>Quantity:</strong> ${invoice.quantity} pcs</td>
+              <th style="width: 60px;">QTY</th>
+              <th>DESCRIPTION</th>
+              <th style="width: 100px;">UNIT PRICE</th>
+              <th style="width: 120px;">AMOUNT</th>
             </tr>
-          </table>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+          </tbody>
+        </table>
+
+        <div class="total-section">
+          <div class="total-box">
+            <div class="total-row grand-total">
+              <span>Total</span>
+              <span>${formatEUR(subtotal)}</span>
+            </div>
+          </div>
         </div>
 
-        ${!isClientView ? `
-        <div class="section">
-          <div class="section-title">Cost Breakdown</div>
-          <table>
-            <thead>
-              <tr>
-                <th>Description</th>
-                <th class="amount">Per Piece (TRY)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td>Fabric</td><td class="amount">${formatCurrency(invoice.fabric_cost)}</td></tr>
-              <tr><td>Production</td><td class="amount">${formatCurrency(invoice.production_cost)}</td></tr>
-              <tr><td>Accessories</td><td class="amount">${formatCurrency(invoice.accessories_cost)}</td></tr>
-              <tr><td>Pattern</td><td class="amount">${formatCurrency(invoice.pattern_cost)}</td></tr>
-              <tr><td>Setup</td><td class="amount">${formatCurrency(invoice.setup_cost)}</td></tr>
-              ${invoice.embroidery_cost > 0 ? `<tr><td>Embroidery</td><td class="amount">${formatCurrency(invoice.embroidery_cost)}</td></tr>` : ''}
-              ${invoice.printing_cost > 0 ? `<tr><td>Printing</td><td class="amount">${formatCurrency(invoice.printing_cost)}</td></tr>` : ''}
-              ${invoice.digital_printing_cost > 0 ? `<tr><td>Digital Printing</td><td class="amount">${formatCurrency(invoice.digital_printing_cost)}</td></tr>` : ''}
-              ${invoice.washing_cost > 0 ? `<tr><td>Washing</td><td class="amount">${formatCurrency(invoice.washing_cost)}</td></tr>` : ''}
-              ${invoice.extra_fees > 0 ? `<tr><td>Extra Fees</td><td class="amount">${formatCurrency(invoice.extra_fees)}</td></tr>` : ''}
-              <tr class="total-row"><td><strong>Total Cost</strong></td><td class="amount"><strong>${formatCurrency(invoice.total_cost_per_piece)}</strong></td></tr>
-              <tr><td>Your Profit</td><td class="amount">${formatCurrency(invoice.profit_per_piece)}</td></tr>
-            </tbody>
-          </table>
-        </div>
-        ` : ''}
-
-        <div class="section">
-          <div class="section-title">Pricing</div>
-          <table>
-            <tbody>
-              <tr><td>Wholesale Price (per piece)</td><td class="amount">${formatCurrency(invoice.wholesale_price)} / ${formatEUR(invoice.wholesale_price)}</td></tr>
-              <tr><td>Retail Price (per piece)</td><td class="amount">${formatCurrency(invoice.retail_price)} / ${formatEUR(invoice.retail_price)}</td></tr>
-              <tr class="grand-total">
-                <td>Total (${invoice.quantity} pcs × ${formatCurrency(invoice.wholesale_price)})</td>
-                <td class="amount">${formatCurrency(invoice.wholesale_price * invoice.quantity)}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        ${invoice.client_notes ? `
-        <div class="notes">
-          <p style="font-weight: 500; margin-bottom: 8px;">Notes</p>
-          <p>${invoice.client_notes}</p>
+        ${invoice.terms_and_conditions ? `
+        <div class="terms-section">
+          <div class="terms-title">TERMS & CONDITIONS</div>
+          <div class="terms-content">${termsHtml}</div>
+          <div style="margin-top: 16px; font-size: 11px; color: #57534e;">
+            By signing this invoice, I agree to the terms and conditions of this quote and order form and any documents incorporated herein.
+          </div>
         </div>
         ` : ''}
 
         <div class="footer">
-          <p>Thank you for your business!</p>
-          <p style="margin-top: 4px;">Exchange Rate: 1 EUR = ${invoice.exchange_rate} TRY</p>
+          <div class="thank-you">Thank you</div>
         </div>
       </body>
       </html>
@@ -226,145 +303,92 @@ export function InvoiceViewer({
                 {STATUS_LABELS[invoice.status]}
               </Badge>
             </DialogTitle>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handlePrint}>
-                <Printer className="h-4 w-4 mr-1" />
-                {isClientView ? 'Print' : 'Print Client Version'}
-              </Button>
-              {!isClientView && (
-                <Button variant="outline" size="sm" onClick={() => {
-                  const prev = isClientView;
-                  handlePrint();
-                }}>
-                  <Eye className="h-4 w-4 mr-1" />
-                  Print Full Version
-                </Button>
-              )}
-            </div>
+            <Button variant="outline" size="sm" onClick={handlePrint}>
+              <Printer className="h-4 w-4 mr-1" />
+              Print Invoice
+            </Button>
           </div>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Client & Order Info */}
+          {/* Client & Invoice Info */}
           <div className="grid grid-cols-2 gap-4">
             <div className="p-4 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground uppercase">Client</p>
+              <p className="text-xs text-muted-foreground uppercase">Bill To</p>
               <p className="font-semibold">{invoice.client?.brand_name || invoice.client?.name || 'N/A'}</p>
+              {invoice.client?.address && (
+                <p className="text-sm text-muted-foreground">{invoice.client.address}</p>
+              )}
             </div>
             <div className="p-4 bg-muted rounded-lg">
-              <p className="text-xs text-muted-foreground uppercase">Order</p>
-              <p className="font-semibold">{invoice.order?.order_number || 'N/A'}</p>
-              <p className="text-sm text-muted-foreground">{invoice.order_name}</p>
-            </div>
-          </div>
-
-          {/* Dates */}
-          <div className="grid grid-cols-3 gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">Created</p>
-              <p className="font-medium">{format(new Date(invoice.created_at), 'PPP')}</p>
-            </div>
-            {invoice.due_date && (
-              <div>
-                <p className="text-muted-foreground">Due Date</p>
-                <p className="font-medium">{format(new Date(invoice.due_date), 'PPP')}</p>
+              <div className="space-y-1">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Invoice #:</span>
+                  <span className="font-mono font-medium">{invoice.invoice_number}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Date:</span>
+                  <span>{format(new Date(invoice.created_at), 'dd/MM/yyyy')}</span>
+                </div>
+                {invoice.due_date && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Due:</span>
+                    <span>{format(new Date(invoice.due_date), 'dd/MM/yyyy')}</span>
+                  </div>
+                )}
               </div>
-            )}
-            {invoice.sent_at && (
-              <div>
-                <p className="text-muted-foreground">Sent</p>
-                <p className="font-medium">{format(new Date(invoice.sent_at), 'PPP')}</p>
-              </div>
-            )}
+            </div>
           </div>
 
           <Separator />
 
-          {/* Cost Breakdown (Internal Only) */}
-          {!isClientView && (
-            <>
-              <div>
-                <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <EyeOff className="h-4 w-4 text-muted-foreground" />
-                  Cost Breakdown (Internal)
-                </h3>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div className="flex justify-between p-2 bg-muted/50 rounded">
-                    <span>Fabric</span>
-                    <span className="font-medium">{formatCurrency(invoice.fabric_cost)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-muted/50 rounded">
-                    <span>Production</span>
-                    <span className="font-medium">{formatCurrency(invoice.production_cost)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-muted/50 rounded">
-                    <span>Accessories</span>
-                    <span className="font-medium">{formatCurrency(invoice.accessories_cost)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-muted/50 rounded">
-                    <span>Pattern</span>
-                    <span className="font-medium">{formatCurrency(invoice.pattern_cost)}</span>
-                  </div>
-                  <div className="flex justify-between p-2 bg-muted/50 rounded">
-                    <span>Setup</span>
-                    <span className="font-medium">{formatCurrency(invoice.setup_cost)}</span>
-                  </div>
-                  {invoice.embroidery_cost > 0 && (
-                    <div className="flex justify-between p-2 bg-muted/50 rounded">
-                      <span>Embroidery</span>
-                      <span className="font-medium">{formatCurrency(invoice.embroidery_cost)}</span>
-                    </div>
-                  )}
-                  {invoice.printing_cost > 0 && (
-                    <div className="flex justify-between p-2 bg-muted/50 rounded">
-                      <span>Printing</span>
-                      <span className="font-medium">{formatCurrency(invoice.printing_cost)}</span>
-                    </div>
-                  )}
-                  {invoice.washing_cost > 0 && (
-                    <div className="flex justify-between p-2 bg-muted/50 rounded">
-                      <span>Washing</span>
-                      <span className="font-medium">{formatCurrency(invoice.washing_cost)}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3 p-3 bg-orange-50 rounded-lg">
-                  <div className="flex justify-between font-semibold">
-                    <span>Total Cost per Piece</span>
-                    <span>{formatCurrency(invoice.total_cost_per_piece)}</span>
-                  </div>
-                  <div className="flex justify-between text-orange-600 mt-1">
-                    <span>Your Profit per Piece</span>
-                    <span>{formatCurrency(invoice.profit_per_piece)}</span>
-                  </div>
-                </div>
-              </div>
-              <Separator />
-            </>
-          )}
-
-          {/* Pricing */}
+          {/* Line Items Table */}
           <div>
-            <h3 className="font-semibold mb-3">Pricing</h3>
-            <div className="space-y-2">
-              <div className="flex justify-between p-3 bg-muted rounded-lg">
-                <span>Wholesale Price (per piece)</span>
-                <div className="text-right">
-                  <span className="font-semibold">{formatCurrency(invoice.wholesale_price)}</span>
-                  <span className="text-muted-foreground ml-2">/ {formatEUR(invoice.wholesale_price)}</span>
-                </div>
-              </div>
-              <div className="flex justify-between p-3 bg-muted rounded-lg">
-                <span>Retail Price (per piece)</span>
-                <div className="text-right">
-                  <span className="font-semibold">{formatCurrency(invoice.retail_price)}</span>
-                  <span className="text-muted-foreground ml-2">/ {formatEUR(invoice.retail_price)}</span>
-                </div>
-              </div>
-              <div className="flex justify-between p-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white rounded-lg">
-                <span className="font-semibold">Total ({invoice.quantity} pcs)</span>
-                <span className="font-bold text-lg">{formatCurrency(invoice.wholesale_price * invoice.quantity)}</span>
-              </div>
+            <h3 className="font-semibold mb-3">Items</h3>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-muted">
+                  <tr>
+                    <th className="text-left p-3 font-medium w-16">QTY</th>
+                    <th className="text-left p-3 font-medium">Description</th>
+                    <th className="text-right p-3 font-medium w-24">Unit Price</th>
+                    <th className="text-right p-3 font-medium w-28">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.length > 0 ? items.map((item) => (
+                    <tr key={item.id} className="border-t">
+                      <td className="p-3 align-top font-medium">{item.quantity}</td>
+                      <td className="p-3 align-top">
+                        <div className="font-medium">{item.product_name}</div>
+                        {item.inclusions && item.inclusions.length > 0 && (
+                          <div className="text-muted-foreground text-xs mt-1">
+                            <span>includes:</span>
+                            {item.inclusions.map((inc, i) => (
+                              <div key={i}>- {inc}</div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <td className="p-3 text-right align-top">{formatEUR(item.unit_price)}</td>
+                      <td className="p-3 text-right align-top font-medium">{formatEUR(item.amount)}</td>
+                    </tr>
+                  )) : (
+                    <tr className="border-t">
+                      <td className="p-3">{invoice.quantity}</td>
+                      <td className="p-3">{invoice.order_name}</td>
+                      <td className="p-3 text-right">{formatEUR(invoice.wholesale_price)}</td>
+                      <td className="p-3 text-right font-medium">{formatEUR(invoice.wholesale_price * invoice.quantity)}</td>
+                    </tr>
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="border-t bg-primary/5">
+                    <td colSpan={3} className="p-3 text-right font-semibold">Total</td>
+                    <td className="p-3 text-right font-bold text-lg">{formatEUR(subtotal)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           </div>
 
@@ -373,38 +397,47 @@ export function InvoiceViewer({
             <div className="p-4 bg-green-50 rounded-lg">
               <div className="flex justify-between">
                 <span className="text-green-800">Amount Paid</span>
-                <span className="font-semibold text-green-800">{formatCurrency(invoice.amount_paid)}</span>
+                <span className="font-semibold text-green-800">{formatEUR(invoice.amount_paid)}</span>
               </div>
               <div className="flex justify-between mt-1">
                 <span className="text-green-800">Remaining</span>
                 <span className="font-semibold text-green-800">
-                  {formatCurrency((invoice.wholesale_price * invoice.quantity) - invoice.amount_paid)}
+                  {formatEUR(subtotal - invoice.amount_paid)}
                 </span>
               </div>
             </div>
           )}
 
-          {/* Notes */}
-          {(invoice.client_notes || (!isClientView && invoice.internal_notes)) && (
+          {/* Terms & Conditions */}
+          {invoice.terms_and_conditions && (
             <>
               <Separator />
-              <div className="space-y-3">
-                {invoice.client_notes && (
-                  <div className="p-3 bg-muted rounded-lg">
-                    <p className="text-xs text-muted-foreground uppercase mb-1">Client Notes</p>
-                    <p className="text-sm">{invoice.client_notes}</p>
-                  </div>
-                )}
-                {!isClientView && invoice.internal_notes && (
-                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-xs text-yellow-700 uppercase mb-1 flex items-center gap-1">
-                      <EyeOff className="h-3 w-3" /> Internal Notes
-                    </p>
-                    <p className="text-sm">{invoice.internal_notes}</p>
-                  </div>
-                )}
+              <div className="p-4 border rounded-lg">
+                <p className="text-sm font-medium text-primary mb-2">Terms & Conditions</p>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">{invoice.terms_and_conditions}</p>
               </div>
             </>
+          )}
+
+          {/* Notes (Internal only) */}
+          {!isClientView && invoice.internal_notes && (
+            <>
+              <Separator />
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-xs text-yellow-700 uppercase mb-1 flex items-center gap-1">
+                  <EyeOff className="h-3 w-3" /> Internal Notes
+                </p>
+                <p className="text-sm">{invoice.internal_notes}</p>
+              </div>
+            </>
+          )}
+
+          {/* Client Notes */}
+          {invoice.client_notes && (
+            <div className="p-3 bg-muted rounded-lg">
+              <p className="text-xs text-muted-foreground uppercase mb-1">Notes</p>
+              <p className="text-sm">{invoice.client_notes}</p>
+            </div>
           )}
         </div>
       </DialogContent>

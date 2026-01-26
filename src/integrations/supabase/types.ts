@@ -132,6 +132,63 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_items: {
+        Row: {
+          amount: number
+          created_at: string
+          description: string | null
+          id: string
+          inclusions: string[] | null
+          invoice_id: string
+          order_id: string | null
+          product_name: string
+          quantity: number
+          sort_order: number
+          unit_price: number
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          inclusions?: string[] | null
+          invoice_id: string
+          order_id?: string | null
+          product_name: string
+          quantity?: number
+          sort_order?: number
+          unit_price?: number
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          inclusions?: string[] | null
+          invoice_id?: string
+          order_id?: string | null
+          product_name?: string
+          quantity?: number
+          sort_order?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoices: {
         Row: {
           accessories_cost: number
@@ -162,6 +219,9 @@ export type Database = {
           sent_at: string | null
           setup_cost: number
           status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          terms_and_conditions: string | null
+          total: number
           total_cost_per_piece: number
           updated_at: string
           viewed_at: string | null
@@ -197,6 +257,9 @@ export type Database = {
           sent_at?: string | null
           setup_cost?: number
           status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          terms_and_conditions?: string | null
+          total?: number
           total_cost_per_piece?: number
           updated_at?: string
           viewed_at?: string | null
@@ -232,6 +295,9 @@ export type Database = {
           sent_at?: string | null
           setup_cost?: number
           status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          terms_and_conditions?: string | null
+          total?: number
           total_cost_per_piece?: number
           updated_at?: string
           viewed_at?: string | null

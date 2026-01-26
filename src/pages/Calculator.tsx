@@ -680,26 +680,6 @@ export default function Calculator() {
       <CreateInvoiceDialog
         open={invoiceDialogOpen}
         onOpenChange={setInvoiceDialogOpen}
-        calculatorData={{
-          orderName,
-          quantity,
-          exchangeRate,
-          fabricCost,
-          productionCost,
-          accessoriesPerPiece: calculations.accessoriesPerPiece,
-          patternCostPerPiece,
-          setupPerPiece: calculations.setupPerPiece,
-          embroidery,
-          printing,
-          digitalPrinting,
-          extraFees,
-          washing,
-          profitInTRY: calculations.profitInTRY,
-          totalCostTRY: calculations.totalCostTRY,
-          wholesalePriceTRY: calculations.wholesalePriceTRY,
-          retailPriceTRY: calculations.retailPriceTRY,
-          accessories,
-        }}
         onSuccess={() => {
           toast({
             title: "Invoice Created",
