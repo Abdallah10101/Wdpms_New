@@ -10,6 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
+import { InvoiceViewer, Invoice, InvoiceStatus } from '@/components/invoices/InvoiceViewer';
 import {
   Package,
   CheckCircle2,
@@ -23,6 +24,7 @@ import {
   Printer,
   Sparkles,
   Waves,
+  DollarSign,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, type Order, type OrderNote, type OrderFile } from '@/lib/types';
@@ -33,6 +35,24 @@ interface ClientData {
   brand_name: string | null;
 }
 
+const INVOICE_STATUS_COLORS: Record<InvoiceStatus, string> = {
+  draft: 'bg-gray-100 text-gray-800',
+  sent: 'bg-blue-100 text-blue-800',
+  viewed: 'bg-purple-100 text-purple-800',
+  partially_paid: 'bg-yellow-100 text-yellow-800',
+  paid: 'bg-green-100 text-green-800',
+  overdue: 'bg-red-100 text-red-800',
+};
+
+const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
+  draft: 'Draft',
+  sent: 'Sent',
+  viewed: 'Viewed',
+  partially_paid: 'Partially Paid',
+  paid: 'Paid',
+  overdue: 'Overdue',
+};
+
 export default function ClientPortal() {
   const navigate = useNavigate();
   const { user, role, isLoading: authLoading } = useAuth();
@@ -41,8 +61,10 @@ export default function ClientPortal() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [recentNotes, setRecentNotes] = useState<(OrderNote & { order?: Order })[]>([]);
   const [archivedFiles, setArchivedFiles] = useState<any[]>([]);
-  const [clientInvoices, setClientInvoices] = useState<OrderFile[]>([]);
+  const [clientInvoices, setClientInvoices] = useState<Invoice[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [invoiceViewerOpen, setInvoiceViewerOpen] = useState(false);
 
   // Redirect non-clients to dashboard
   useEffect(() => {
@@ -103,21 +125,27 @@ export default function ClientPortal() {
           setRecentNotes(notesWithOrders as any);
         }
 
-        // Fetch client invoices (invoice_2 category only)
+        // Fetch client invoices from the invoices table
         const { data: invoicesData, error: invoicesError } = await supabase
-          .from('order_files')
-          .select('*')
-          .in('order_id', orderIds)
-          .eq('category', 'invoice_2')
+          .from('invoices')
+          .select(`
+            *,
+            order:orders(order_number, product_name)
+          `)
+          .eq('client_id', clientData.id)
+          .neq('status', 'draft')
           .order('created_at', { ascending: false });
 
         if (!invoicesError && invoicesData) {
-          // Attach order info to invoices
-          const invoicesWithOrders = invoicesData.map(inv => ({
-            ...inv,
-            order: ordersData.find(o => o.id === inv.order_id),
-          }));
-          setClientInvoices(invoicesWithOrders as any);
+          // Mark invoice as viewed when client fetches it
+          const unviewedInvoices = invoicesData.filter(inv => inv.status === 'sent');
+          if (unviewedInvoices.length > 0) {
+            await supabase
+              .from('invoices')
+              .update({ status: 'viewed', viewed_at: new Date().toISOString() })
+              .in('id', unviewedInvoices.map(i => i.id));
+          }
+          setClientInvoices(invoicesData as Invoice[]);
         }
       }
 
@@ -505,31 +533,45 @@ export default function ClientPortal() {
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {clientInvoices.map((invoice: any) => (
-                  <Card key={invoice.id}>
+                {clientInvoices.map((invoice) => (
+                  <Card 
+                    key={invoice.id} 
+                    className="cursor-pointer hover:bg-accent/50 transition-colors"
+                    onClick={() => {
+                      setSelectedInvoice(invoice);
+                      setInvoiceViewerOpen(true);
+                    }}
+                  >
                     <CardContent className="p-4">
                       <div className="flex items-start gap-3">
                         <div className="rounded-lg bg-primary/10 p-2">
                           <FileText className="h-5 w-5 text-primary" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="font-medium text-sm truncate">{invoice.file_name}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono font-medium text-sm">{invoice.invoice_number}</p>
+                            <Badge className={INVOICE_STATUS_COLORS[invoice.status]}>
+                              {INVOICE_STATUS_LABELS[invoice.status]}
+                            </Badge>
+                          </div>
                           {invoice.order && (
-                            <p className="text-xs text-muted-foreground">
+                            <p className="text-xs text-muted-foreground mt-1">
                               {invoice.order.product_name}
                             </p>
                           )}
                           <p className="text-xs text-muted-foreground mt-1">
                             {format(new Date(invoice.created_at), 'MMM d, yyyy')}
                           </p>
+                          <div className="mt-2 flex items-center justify-between">
+                            <span className="text-sm font-semibold">
+                              ₺{(invoice.wholesale_price * invoice.quantity).toLocaleString()}
+                            </span>
+                            <Button variant="ghost" size="sm">
+                              <Eye className="h-4 w-4 mr-1" />
+                              View
+                            </Button>
+                          </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleDownload(invoice.file_path, invoice.file_name)}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
                       </div>
                     </CardContent>
                   </Card>
@@ -539,6 +581,14 @@ export default function ClientPortal() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Invoice Viewer Dialog */}
+      <InvoiceViewer
+        invoice={selectedInvoice}
+        open={invoiceViewerOpen}
+        onOpenChange={setInvoiceViewerOpen}
+        isClientView={true}
+      />
     </DashboardLayout>
   );
 }
