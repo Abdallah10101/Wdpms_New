@@ -27,8 +27,8 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Users, Mail, Loader2 } from 'lucide-react';
-import type { Profile, UserRole, AppRole } from '@/lib/types';
+import { Plus, Users, Mail, Loader2, Copy, Check } from 'lucide-react';
+import type { Profile, AppRole } from '@/lib/types';
 
 interface TeamMember extends Profile {
   role?: AppRole;
@@ -43,9 +43,14 @@ export default function Team() {
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [copied, setCopied] = useState(false);
 
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<AppRole>('team');
+  // New user form state
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newFullName, setNewFullName] = useState('');
+  const [newRole, setNewRole] = useState<AppRole>('client');
+  const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -64,7 +69,6 @@ export default function Team() {
 
   const fetchTeamMembers = async () => {
     try {
-      // Fetch all profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
@@ -72,14 +76,12 @@ export default function Team() {
 
       if (profilesError) throw profilesError;
 
-      // Fetch all roles
       const { data: roles, error: rolesError } = await supabase
         .from('user_roles')
         .select('*');
 
       if (rolesError) throw rolesError;
 
-      // Combine profiles with roles
       const membersWithRoles: TeamMember[] = (profiles || []).map((profile) => {
         const userRole = roles?.find((r) => r.user_id === profile.user_id);
         return {
@@ -101,28 +103,91 @@ export default function Team() {
     }
   };
 
-  const handleAssignRole = async (userId: string, newRole: AppRole) => {
+  const handleCreateUser = async () => {
+    if (!newEmail || !newPassword || !newFullName) {
+      toast({
+        title: 'Missing fields',
+        description: 'Please fill in all fields.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast({
+        title: 'Password too short',
+        description: 'Password must be at least 6 characters.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
     try {
-      // Check if role exists
+      const { data, error } = await supabase.functions.invoke('create-user', {
+        body: {
+          email: newEmail,
+          password: newPassword,
+          fullName: newFullName,
+          role: newRole,
+        },
+      });
+
+      if (error) throw error;
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      // Store credentials for display
+      setCreatedCredentials({ email: newEmail, password: newPassword });
+
+      toast({
+        title: 'User Created!',
+        description: `${newFullName} has been added as ${newRole}.`,
+      });
+
+      // Refresh the list
+      fetchTeamMembers();
+
+      // Reset form but keep dialog open to show credentials
+      setNewEmail('');
+      setNewPassword('');
+      setNewFullName('');
+      setNewRole('client');
+    } catch (error: unknown) {
+      console.error('Error creating user:', error);
+      const message = error instanceof Error ? error.message : 'Failed to create user.';
+      toast({
+        title: 'Error',
+        description: message,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAssignRole = async (userId: string, newRoleValue: AppRole) => {
+    try {
       const { data: existingRole } = await supabase
         .from('user_roles')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       if (existingRole) {
-        // Update existing role
         const { error } = await supabase
           .from('user_roles')
-          .update({ role: newRole })
+          .update({ role: newRoleValue })
           .eq('user_id', userId);
 
         if (error) throw error;
       } else {
-        // Insert new role
         const { error } = await supabase
           .from('user_roles')
-          .insert({ user_id: userId, role: newRole });
+          .insert({ user_id: userId, role: newRoleValue });
 
         if (error) throw error;
       }
@@ -143,6 +208,28 @@ export default function Team() {
     }
   };
 
+  const copyCredentials = () => {
+    if (createdCredentials) {
+      const text = `Email: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`;
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: 'Copied!',
+        description: 'Credentials copied to clipboard.',
+      });
+    }
+  };
+
+  const closeDialog = () => {
+    setIsDialogOpen(false);
+    setCreatedCredentials(null);
+    setNewEmail('');
+    setNewPassword('');
+    setNewFullName('');
+    setNewRole('client');
+  };
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -152,8 +239,8 @@ export default function Team() {
       .slice(0, 2);
   };
 
-  const getRoleBadgeColor = (role?: AppRole) => {
-    switch (role) {
+  const getRoleBadgeColor = (roleValue?: AppRole) => {
+    switch (roleValue) {
       case 'admin':
         return 'bg-primary text-primary-foreground';
       case 'team':
@@ -180,6 +267,126 @@ export default function Team() {
               Manage team members and their roles
             </p>
           </div>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            if (!open) closeDialog();
+            else setIsDialogOpen(true);
+          }}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Create User
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-md">
+              {createdCredentials ? (
+                <>
+                  <DialogHeader>
+                    <DialogTitle>User Created Successfully!</DialogTitle>
+                    <DialogDescription>
+                      Share these credentials with the user. Make sure to save them as the password cannot be retrieved later.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-2">
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Email</Label>
+                        <p className="font-mono text-sm">{createdCredentials.email}</p>
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground">Password</Label>
+                        <p className="font-mono text-sm">{createdCredentials.password}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter className="flex gap-2">
+                    <Button variant="outline" onClick={copyCredentials}>
+                      {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
+                      {copied ? 'Copied!' : 'Copy Credentials'}
+                    </Button>
+                    <Button onClick={closeDialog}>Done</Button>
+                  </DialogFooter>
+                </>
+              ) : (
+                <>
+                  <DialogHeader>
+                    <DialogTitle>Create New User</DialogTitle>
+                    <DialogDescription>
+                      Create an account for a team member or client. They can use these credentials to log in.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="fullName">Full Name</Label>
+                      <Input
+                        id="fullName"
+                        placeholder="John Doe"
+                        value={newFullName}
+                        onChange={(e) => setNewFullName(e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="email">Email</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="user@example.com"
+                        value={newEmail}
+                        onChange={(e) => setNewEmail(e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="password">Password</Label>
+                      <Input
+                        id="password"
+                        type="text"
+                        placeholder="Minimum 6 characters"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Create a temporary password. Users can change it after logging in.
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="role">Role</Label>
+                      <Select
+                        value={newRole}
+                        onValueChange={(value) => setNewRole(value as AppRole)}
+                        disabled={isSubmitting}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Admin</SelectItem>
+                          <SelectItem value="team">Team</SelectItem>
+                          <SelectItem value="client">Client</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={closeDialog} disabled={isSubmitting}>
+                      Cancel
+                    </Button>
+                    <Button onClick={handleCreateUser} disabled={isSubmitting}>
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        'Create User'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </>
+              )}
+            </DialogContent>
+          </Dialog>
         </div>
 
         {/* Team Members */}
@@ -207,6 +414,10 @@ export default function Team() {
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Users className="h-12 w-12 text-muted-foreground/50" />
                 <p className="mt-4 text-sm text-muted-foreground">No team members yet</p>
+                <Button className="mt-4" onClick={() => setIsDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create First User
+                </Button>
               </div>
             ) : (
               <div className="space-y-4">
