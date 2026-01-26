@@ -1,345 +1,662 @@
-import { useState } from 'react';
-import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Button } from '@/components/ui/button';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { Printer } from 'lucide-react';
+import React, { useState, useMemo } from "react";
+import DashboardLayout from "@/components/layout/DashboardLayout";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Printer, Plus, X, ChevronDown, ChevronUp } from "lucide-react";
 
-type Currency = 'TRY' | 'EUR' | 'USD';
+type Currency = "TRY" | "EUR";
 
-const currencySymbols: Record<Currency, string> = {
-  TRY: '₺',
-  EUR: '€',
-  USD: '$',
-};
+interface Accessory {
+  id: string;
+  type: string;
+  quantity: number;
+  pricePerUnit: number;
+}
 
-const exchangeRates: Record<Currency, number> = {
-  TRY: 1,
-  EUR: 0.0198, // 1 TRY = 0.0198 EUR (approx 1 EUR = 50.43 TRY)
-  USD: 0.0217, // approximate
-};
+interface OptionalExtra {
+  enabled: boolean;
+  cost: number;
+}
+
+const ACCESSORY_TYPES = [
+  "Neck Labels",
+  "Washing Labels",
+  "Thanks Cards",
+  "Hang Tags",
+  "Packaging",
+  "Zippers",
+  "Rivets",
+  "Laces",
+  "Adjustables",
+  "Key Chain Holder",
+  "Buttons",
+];
 
 export default function Calculator() {
-  const [quantity, setQuantity] = useState<number>(0);
-  const [currency, setCurrency] = useState<Currency>('TRY');
-  const [profitPerPiece, setProfitPerPiece] = useState<number>(0);
+  // Order Details
+  const [orderName, setOrderName] = useState("");
+  const [quantity, setQuantity] = useState(100);
+  const [displayCurrency, setDisplayCurrency] = useState<Currency>("TRY");
+  const [exchangeRate, setExchangeRate] = useState(50.43);
 
-  // Base costs
-  const [fabric, setFabric] = useState<number>(0);
-  const [production, setProduction] = useState<number>(0);
-  const [accessories, setAccessories] = useState<number>(0);
+  // Base Costs (TRY)
+  const [fabricCost, setFabricCost] = useState(0);
+  const [productionCost, setProductionCost] = useState(0);
+  const [accessories, setAccessories] = useState<Accessory[]>([]);
+  const [accessoriesOpen, setAccessoriesOpen] = useState(false);
 
-  // Pattern costs
-  const [patternPerPiece, setPatternPerPiece] = useState<number>(0);
-  const [patternSetup, setPatternSetup] = useState<number>(0);
+  // Additional Costs (TRY)
+  const [patternCostPerPiece, setPatternCostPerPiece] = useState(0);
+  const [patternSetupCost, setPatternSetupCost] = useState(0);
 
-  // Optional extras
-  const [embroidery, setEmbroidery] = useState<number>(0);
-  const [printing, setPrinting] = useState<number>(0);
-  const [extraFees, setExtraFees] = useState<number>(0);
-  const [washing, setWashing] = useState<number>(0);
+  // Optional Extras
+  const [embroidery, setEmbroidery] = useState<OptionalExtra>({ enabled: false, cost: 0 });
+  const [printing, setPrinting] = useState<OptionalExtra>({ enabled: false, cost: 0 });
+  const [digitalPrinting, setDigitalPrinting] = useState<OptionalExtra>({ enabled: false, cost: 0 });
+  const [extraFees, setExtraFees] = useState<OptionalExtra>({ enabled: false, cost: 0 });
+  const [washing, setWashing] = useState<OptionalExtra>({ enabled: false, cost: 0 });
 
-  // Calculations (all in TRY first)
-  const extrasPerPiece = embroidery + printing + extraFees + washing;
-  const patternCostPerPiece = quantity > 0 ? patternPerPiece + patternSetup / quantity : patternPerPiece;
-  const totalCostPerPiece = fabric + production + accessories + patternCostPerPiece + extrasPerPiece;
-  const totalCost = totalCostPerPiece * quantity;
-  const costWithProfitPerPiece = totalCostPerPiece + profitPerPiece;
-  const totalWithProfit = costWithProfitPerPiece * quantity;
-  const totalProfit = profitPerPiece * quantity;
+  // Profit
+  const [profitPerPiece, setProfitPerPiece] = useState(0);
+  const [profitCurrency, setProfitCurrency] = useState<Currency>("TRY");
 
-  // Convert to display currency
-  const convert = (amount: number): number => {
-    return amount * exchangeRates[currency];
+  // Add new accessory
+  const addAccessory = () => {
+    setAccessories([
+      ...accessories,
+      { id: crypto.randomUUID(), type: ACCESSORY_TYPES[0], quantity: 1, pricePerUnit: 0 },
+    ]);
   };
 
-  const formatCurrency = (amount: number): string => {
-    const converted = convert(amount);
-    return `${currencySymbols[currency]}${converted.toFixed(2)}`;
+  // Remove accessory
+  const removeAccessory = (id: string) => {
+    setAccessories(accessories.filter((a) => a.id !== id));
   };
 
+  // Update accessory
+  const updateAccessory = (id: string, field: keyof Accessory, value: string | number) => {
+    setAccessories(
+      accessories.map((a) => (a.id === id ? { ...a, [field]: value } : a))
+    );
+  };
+
+  // Calculations
+  const calculations = useMemo(() => {
+    const qty = quantity || 1;
+
+    // Accessories cost per piece
+    const accessoriesPerPiece = accessories.reduce((sum, acc) => {
+      return sum + (acc.quantity * acc.pricePerUnit) / qty;
+    }, 0);
+
+    // Setup cost per piece
+    const setupPerPiece = patternSetupCost / qty;
+
+    // Extras per piece
+    const extrasPerPiece =
+      (embroidery.enabled ? embroidery.cost : 0) +
+      (printing.enabled ? printing.cost : 0) +
+      (digitalPrinting.enabled ? digitalPrinting.cost : 0) +
+      (extraFees.enabled ? extraFees.cost : 0) +
+      (washing.enabled ? washing.cost : 0);
+
+    // Total cost in TRY
+    const totalCostTRY =
+      fabricCost +
+      productionCost +
+      accessoriesPerPiece +
+      patternCostPerPiece +
+      setupPerPiece +
+      extrasPerPiece;
+
+    // Profit in TRY
+    const profitInTRY =
+      profitCurrency === "EUR" ? profitPerPiece * exchangeRate : profitPerPiece;
+
+    // Wholesale price in TRY
+    const wholesalePriceTRY = totalCostTRY + profitInTRY;
+
+    // Retail price in TRY
+    const retailPriceTRY = wholesalePriceTRY * 2.2;
+
+    return {
+      fabricCostTRY: fabricCost,
+      productionCostTRY: productionCost,
+      accessoriesPerPiece,
+      patternCostPerPiece,
+      setupPerPiece,
+      extrasPerPiece,
+      totalCostTRY,
+      profitInTRY,
+      wholesalePriceTRY,
+      retailPriceTRY,
+    };
+  }, [
+    quantity,
+    fabricCost,
+    productionCost,
+    accessories,
+    patternCostPerPiece,
+    patternSetupCost,
+    embroidery,
+    printing,
+    digitalPrinting,
+    extraFees,
+    washing,
+    profitPerPiece,
+    profitCurrency,
+    exchangeRate,
+  ]);
+
+  // Format currency
+  const formatCurrency = (valueTRY: number): string => {
+    if (displayCurrency === "EUR") {
+      return `€${(valueTRY / exchangeRate).toFixed(2)}`;
+    }
+    return `₺${valueTRY.toFixed(2)}`;
+  };
+
+  // Print report
   const handlePrint = () => {
-    window.print();
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) return;
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Pricing Report - ${orderName || "Untitled Order"}</title>
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; background: #fafaf9; color: #1c1917; }
+          .header { margin-bottom: 32px; border-bottom: 2px solid #F97316; padding-bottom: 16px; }
+          .header h1 { font-size: 24px; font-weight: 700; color: #1c1917; }
+          .header p { color: #78716c; margin-top: 4px; }
+          .meta { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+          .meta-item { background: white; padding: 16px; border-radius: 8px; border: 1px solid #e7e5e4; }
+          .meta-item label { font-size: 12px; color: #78716c; text-transform: uppercase; }
+          .meta-item value { font-size: 18px; font-weight: 600; display: block; margin-top: 4px; }
+          .section { background: white; padding: 24px; border-radius: 12px; border: 1px solid #e7e5e4; margin-bottom: 24px; }
+          .section h2 { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: #F97316; }
+          .row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f5f5f4; }
+          .row:last-child { border-bottom: none; }
+          .row label { color: #57534e; }
+          .row value { font-weight: 500; }
+          .total-section { background: linear-gradient(135deg, #F97316 0%, #ea580c 100%); color: white; padding: 24px; border-radius: 12px; }
+          .total-section h2 { color: white; margin-bottom: 16px; }
+          .total-section .row { border-color: rgba(255,255,255,0.2); }
+          .total-section .row label, .total-section .row value { color: white; }
+          .total-section .row.main value { font-size: 24px; font-weight: 700; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>WDS Pricing Report</h1>
+          <p>${orderName || "Untitled Order"}</p>
+        </div>
+        
+        <div class="meta">
+          <div class="meta-item">
+            <label>Quantity</label>
+            <value>${quantity} pcs</value>
+          </div>
+          <div class="meta-item">
+            <label>Exchange Rate</label>
+            <value>1 EUR = ${exchangeRate} TRY</value>
+          </div>
+          <div class="meta-item">
+            <label>Date</label>
+            <value>${new Date().toLocaleDateString()}</value>
+          </div>
+        </div>
+        
+        <div class="section">
+          <h2>Base Costs</h2>
+          <div class="row"><label>Fabric Cost</label><value>${formatCurrency(calculations.fabricCostTRY)}</value></div>
+          <div class="row"><label>Production Cost</label><value>${formatCurrency(calculations.productionCostTRY)}</value></div>
+          <div class="row"><label>Accessories Cost</label><value>${formatCurrency(calculations.accessoriesPerPiece)}</value></div>
+        </div>
+        
+        ${accessories.length > 0 ? `
+        <div class="section">
+          <h2>Accessories Breakdown</h2>
+          ${accessories.map(acc => `
+            <div class="row">
+              <label>${acc.type} (${acc.quantity} × ${formatCurrency(acc.pricePerUnit)})</label>
+              <value>${formatCurrency((acc.quantity * acc.pricePerUnit) / quantity)}</value>
+            </div>
+          `).join('')}
+        </div>
+        ` : ''}
+        
+        <div class="section">
+          <h2>Pattern Costs</h2>
+          <div class="row"><label>Pattern per Piece</label><value>${formatCurrency(calculations.patternCostPerPiece)}</value></div>
+          <div class="row"><label>Setup Cost (per piece)</label><value>${formatCurrency(calculations.setupPerPiece)}</value></div>
+        </div>
+        
+        ${calculations.extrasPerPiece > 0 ? `
+        <div class="section">
+          <h2>Optional Extras</h2>
+          ${embroidery.enabled ? `<div class="row"><label>Embroidery</label><value>${formatCurrency(embroidery.cost)}</value></div>` : ''}
+          ${printing.enabled ? `<div class="row"><label>Printing</label><value>${formatCurrency(printing.cost)}</value></div>` : ''}
+          ${digitalPrinting.enabled ? `<div class="row"><label>Digital Printing</label><value>${formatCurrency(digitalPrinting.cost)}</value></div>` : ''}
+          ${extraFees.enabled ? `<div class="row"><label>Extra Fees</label><value>${formatCurrency(extraFees.cost)}</value></div>` : ''}
+          ${washing.enabled ? `<div class="row"><label>Washing</label><value>${formatCurrency(washing.cost)}</value></div>` : ''}
+        </div>
+        ` : ''}
+        
+        <div class="total-section">
+          <h2>Final Results</h2>
+          <div class="row"><label>Total Cost per Piece</label><value>${formatCurrency(calculations.totalCostTRY)}</value></div>
+          <div class="row"><label>Profit per Piece</label><value>${formatCurrency(calculations.profitInTRY)}</value></div>
+          <div class="row main"><label>Wholesale Price</label><value>${formatCurrency(calculations.wholesalePriceTRY)}</value></div>
+          <div class="row main"><label>Retail Price (×2.2)</label><value>${formatCurrency(calculations.retailPriceTRY)}</value></div>
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.print();
   };
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">WDS Pricing Calculator</h1>
-          <p className="text-muted-foreground">Calculate manufacturing costs and profit margins</p>
-        </div>
+      <div className="min-h-screen bg-stone-50 relative">
+        {/* Noise texture overlay */}
+        <div className="absolute inset-0 opacity-30 pointer-events-none" style={{
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")`,
+        }} />
+        
+        <div className="relative z-10 p-6">
+          <h1 className="text-2xl font-bold text-stone-900 mb-6">Pricing Calculator</h1>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Left Column - Inputs */}
+            <div className="lg:col-span-2 space-y-6">
+              {/* Order Details */}
+              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-stone-800">Order Details</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Order Name</Label>
+                      <Input
+                        value={orderName}
+                        onChange={(e) => setOrderName(e.target.value)}
+                        placeholder="Enter order name"
+                        className="bg-white/50 border-stone-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Quantity</Label>
+                      <Input
+                        type="number"
+                        value={quantity}
+                        onChange={(e) => setQuantity(Number(e.target.value))}
+                        className="bg-white/50 border-stone-200"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Display Currency</Label>
+                      <Select value={displayCurrency} onValueChange={(v) => setDisplayCurrency(v as Currency)}>
+                        <SelectTrigger className="bg-white/50 border-stone-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-stone-200">
+                          <SelectItem value="TRY">₺ TRY</SelectItem>
+                          <SelectItem value="EUR">€ EUR</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Exchange Rate (1 EUR = ? TRY)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={exchangeRate}
+                        onChange={(e) => setExchangeRate(Number(e.target.value))}
+                        className="bg-white/50 border-stone-200"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          {/* Input Section */}
-          <div className="space-y-6">
-            {/* Order Details */}
-            <Card>
-              <CardContent className="pt-6 space-y-4">
-                <h3 className="text-lg font-semibold">Order Details</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="quantity">Quantity</Label>
-                    <Input
-                      id="quantity"
-                      type="number"
-                      min="0"
-                      value={quantity || ''}
-                      onChange={(e) => setQuantity(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
+              {/* Base Costs */}
+              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-stone-800">Base Costs (TRY)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Fabric Cost per Piece</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={fabricCost || ""}
+                        onChange={(e) => setFabricCost(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="bg-white/50 border-stone-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Production Cost per Piece</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={productionCost || ""}
+                        onChange={(e) => setProductionCost(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="bg-white/50 border-stone-200"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="currency">Display Currency</Label>
-                    <Select value={currency} onValueChange={(v) => setCurrency(v as Currency)}>
-                      <SelectTrigger id="currency">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="TRY">TRY (₺)</SelectItem>
-                        <SelectItem value="EUR">EUR (€)</SelectItem>
-                        <SelectItem value="USD">USD ($)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="profit">Your Profit per Piece (TRY)</Label>
-                  <Input
-                    id="profit"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={profitPerPiece || ''}
-                    onChange={(e) => setProfitPerPiece(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Base Costs */}
-            <Card>
-              <CardContent className="pt-6 space-y-4">
-                <h3 className="text-lg font-semibold">Base Costs (per piece in TRY)</h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fabric">1. Fabric</Label>
-                    <Input
-                      id="fabric"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={fabric || ''}
-                      onChange={(e) => setFabric(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="production">2. Production</Label>
-                    <Input
-                      id="production"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={production || ''}
-                      onChange={(e) => setProduction(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="accessories">3. Accessories</Label>
-                    <Input
-                      id="accessories"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={accessories || ''}
-                      onChange={(e) => setAccessories(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                  {/* Accessories Collapsible */}
+                  <Collapsible open={accessoriesOpen} onOpenChange={setAccessoriesOpen}>
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className="w-full justify-between bg-white/50 border-stone-200 hover:bg-white/80"
+                      >
+                        <span className="flex items-center gap-2">
+                          Accessories ({accessories.length})
+                        </span>
+                        {accessoriesOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="mt-4 space-y-3">
+                      {accessories.map((acc) => (
+                        <div key={acc.id} className="flex items-end gap-2 p-3 bg-white/40 rounded-lg">
+                          <div className="flex-1 space-y-1">
+                            <Label className="text-xs text-stone-500">Type</Label>
+                            <Select
+                              value={acc.type}
+                              onValueChange={(v) => updateAccessory(acc.id, "type", v)}
+                            >
+                              <SelectTrigger className="bg-white/50 border-stone-200 h-9">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="bg-white border-stone-200">
+                                {ACCESSORY_TYPES.map((type) => (
+                                  <SelectItem key={type} value={type}>
+                                    {type}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="w-24 space-y-1">
+                            <Label className="text-xs text-stone-500">Qty</Label>
+                            <Input
+                              type="number"
+                              value={acc.quantity || ""}
+                              onChange={(e) => updateAccessory(acc.id, "quantity", Number(e.target.value))}
+                              className="bg-white/50 border-stone-200 h-9"
+                            />
+                          </div>
+                          <div className="w-28 space-y-1">
+                            <Label className="text-xs text-stone-500">Price/Unit</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={acc.pricePerUnit || ""}
+                              onChange={(e) => updateAccessory(acc.id, "pricePerUnit", Number(e.target.value))}
+                              className="bg-white/50 border-stone-200 h-9"
+                            />
+                          </div>
+                          <div className="w-24 text-right">
+                            <span className="text-xs text-stone-500 block mb-1">Per Piece</span>
+                            <span className="text-sm font-medium text-stone-700">
+                              {formatCurrency((acc.quantity * acc.pricePerUnit) / (quantity || 1))}
+                            </span>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeAccessory(acc.id)}
+                            className="h-9 w-9 text-stone-400 hover:text-red-500"
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                      <Button
+                        variant="outline"
+                        onClick={addAccessory}
+                        className="w-full border-dashed border-stone-300 text-stone-600 hover:bg-white/50"
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Accessory
+                      </Button>
+                    </CollapsibleContent>
+                  </Collapsible>
+                </CardContent>
+              </Card>
 
-            {/* Pattern Costs */}
-            <Card>
-              <CardContent className="pt-6 space-y-4">
-                <h3 className="text-lg font-semibold">Pattern Costs (in TRY)</h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="patternPerPiece">Pattern per Piece</Label>
-                    <Input
-                      id="patternPerPiece"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={patternPerPiece || ''}
-                      onChange={(e) => setPatternPerPiece(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
+              {/* Additional Costs */}
+              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-stone-800">Additional Costs (TRY)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Pattern Cost per Piece</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={patternCostPerPiece || ""}
+                        onChange={(e) => setPatternCostPerPiece(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="bg-white/50 border-stone-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Pattern Setup Cost (one-time)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={patternSetupCost || ""}
+                        onChange={(e) => setPatternSetupCost(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="bg-white/50 border-stone-200"
+                      />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="patternSetup">Pattern Setup (one-time)</Label>
-                    <Input
-                      id="patternSetup"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={patternSetup || ''}
-                      onChange={(e) => setPatternSetup(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
 
-            {/* Optional Extras */}
-            <Card>
-              <CardContent className="pt-6 space-y-4">
-                <h3 className="text-lg font-semibold">Optional Extras (per piece in TRY)</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="embroidery">Embroidery</Label>
-                    <Input
-                      id="embroidery"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={embroidery || ''}
-                      onChange={(e) => setEmbroidery(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="printing">Printing</Label>
-                    <Input
-                      id="printing"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={printing || ''}
-                      onChange={(e) => setPrinting(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="extraFees">Extra Fees</Label>
-                    <Input
-                      id="extraFees"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={extraFees || ''}
-                      onChange={(e) => setExtraFees(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="washing">Washing</Label>
-                    <Input
-                      id="washing"
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={washing || ''}
-                      onChange={(e) => setWashing(Number(e.target.value) || 0)}
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+              {/* Optional Extras */}
+              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-stone-800">Optional Extras (per piece in TRY)</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {[
+                    { label: "Embroidery", state: embroidery, setState: setEmbroidery },
+                    { label: "Printing", state: printing, setState: setPrinting },
+                    { label: "Digital Printing", state: digitalPrinting, setState: setDigitalPrinting },
+                    { label: "Extra Fees", state: extraFees, setState: setExtraFees },
+                    { label: "Washing", state: washing, setState: setWashing },
+                  ].map(({ label, state, setState }) => (
+                    <div key={label} className="flex items-center gap-4">
+                      <div className="flex items-center gap-2 w-40">
+                        <Checkbox
+                          checked={state.enabled}
+                          onCheckedChange={(checked) =>
+                            setState({ ...state, enabled: checked as boolean })
+                          }
+                          className="border-stone-300 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                        />
+                        <Label className="text-stone-600 cursor-pointer">{label}</Label>
+                      </div>
+                      {state.enabled && (
+                        <Input
+                          type="number"
+                          step="0.01"
+                          value={state.cost || ""}
+                          onChange={(e) => setState({ ...state, cost: Number(e.target.value) })}
+                          placeholder="0.00"
+                          className="flex-1 max-w-32 bg-white/50 border-stone-200"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
 
-          {/* Results Section */}
-          <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
-            {/* Cost Breakdown */}
-            <Card>
-              <CardContent className="pt-6 space-y-3">
-                <h3 className="text-lg font-semibold">Cost Breakdown</h3>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Fabric</span>
-                  <span>{formatCurrency(fabric)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Production</span>
-                  <span>{formatCurrency(production)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Accessories (per piece)</span>
-                  <span>{formatCurrency(accessories)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Pattern cost (per piece + setup)</span>
-                  <span>{formatCurrency(patternCostPerPiece)}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Extras per piece</span>
-                  <span>{formatCurrency(extrasPerPiece)}</span>
-                </div>
-                <div className="border-t pt-3 mt-3">
-                  <div className="flex justify-between font-semibold">
-                    <span>Total cost per piece</span>
-                    <span>{formatCurrency(totalCostPerPiece)}</span>
+              {/* Profit Margins */}
+              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-stone-800">Profit Margins</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Profit per Piece</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={profitPerPiece || ""}
+                        onChange={(e) => setProfitPerPiece(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="bg-white/50 border-stone-200"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-stone-600">Profit Currency</Label>
+                      <Select value={profitCurrency} onValueChange={(v) => setProfitCurrency(v as Currency)}>
+                        <SelectTrigger className="bg-white/50 border-stone-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-white border-stone-200">
+                          <SelectItem value="TRY">₺ TRY</SelectItem>
+                          <SelectItem value="EUR">€ EUR</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="flex justify-between font-semibold text-lg mt-2">
-                    <span>Total for {quantity} pieces</span>
-                    <span>{formatCurrency(totalCost)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+            </div>
 
-            {/* Cost With Profit */}
-            <Card>
-              <CardContent className="pt-6 space-y-3">
-                <h3 className="text-lg font-semibold">Cost With Your Profit</h3>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Per piece</span>
-                  <span>{formatCurrency(costWithProfitPerPiece)}</span>
-                </div>
-                <div className="flex justify-between font-semibold text-lg">
-                  <span>Total ({quantity} pieces)</span>
-                  <span className="text-primary">{formatCurrency(totalWithProfit)}</span>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Right Column - Results (Sticky) */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-6 space-y-6">
+                {/* Cost Breakdown */}
+                <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-stone-800">Cost Breakdown</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-600">Fabric Cost</span>
+                      <span className="font-medium text-stone-800">{formatCurrency(calculations.fabricCostTRY)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-600">Production Cost</span>
+                      <span className="font-medium text-stone-800">{formatCurrency(calculations.productionCostTRY)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-600">Accessories Cost</span>
+                      <span className="font-medium text-stone-800">{formatCurrency(calculations.accessoriesPerPiece)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-600">Pattern Cost</span>
+                      <span className="font-medium text-stone-800">{formatCurrency(calculations.patternCostPerPiece)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-600">Setup Cost (per piece)</span>
+                      <span className="font-medium text-stone-800">{formatCurrency(calculations.setupPerPiece)}</span>
+                    </div>
+                    {calculations.extrasPerPiece > 0 && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-stone-600">Extras Cost</span>
+                        <span className="font-medium text-stone-800">{formatCurrency(calculations.extrasPerPiece)}</span>
+                      </div>
+                    )}
+                    <div className="border-t border-stone-200 pt-3">
+                      <div className="flex justify-between">
+                        <span className="font-semibold text-stone-700">Total Cost per Piece</span>
+                        <span className="font-bold text-stone-900">{formatCurrency(calculations.totalCostTRY)}</span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* Your Profit */}
-            <Card>
-              <CardContent className="pt-6 space-y-3">
-                <h3 className="text-lg font-semibold">Your Profit</h3>
-                <div className="flex justify-between text-sm">
-                  <span className="text-muted-foreground">Per piece</span>
-                  <span>{formatCurrency(profitPerPiece)}</span>
-                </div>
-                <div className="flex justify-between font-semibold text-lg">
-                  <span>Total ({quantity} pieces)</span>
-                  <span className="text-primary">{formatCurrency(totalProfit)}</span>
-                </div>
-              </CardContent>
-            </Card>
+                {/* Cost With Your Profit */}
+                <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-stone-800">Cost With Your Profit</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-600">Total Cost</span>
+                      <span className="font-medium text-stone-800">{formatCurrency(calculations.totalCostTRY)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-stone-600">+ Your Profit</span>
+                      <span className="font-medium text-stone-800">{formatCurrency(calculations.profitInTRY)}</span>
+                    </div>
+                    <div className="border-t border-stone-200 pt-3">
+                      <div className="flex justify-between">
+                        <span className="font-semibold text-stone-700">Wholesale Price</span>
+                        <span className="font-bold text-stone-900">{formatCurrency(calculations.wholesalePriceTRY)}</span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-semibold text-stone-700">Retail Price (×2.2)</span>
+                      <span className="font-bold text-stone-900">{formatCurrency(calculations.retailPriceTRY)}</span>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            {/* Print Button */}
-            <Button onClick={handlePrint} className="w-full" size="lg">
-              <Printer className="mr-2 h-4 w-4" />
-              Print Report
-            </Button>
+                {/* Your Profit */}
+                <Card className="backdrop-blur-xl bg-gradient-to-br from-orange-500 to-orange-600 border-orange-400/50 shadow-lg">
+                  <CardHeader className="pb-4">
+                    <CardTitle className="text-lg font-semibold text-white">Your Profit</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-orange-100">Per Piece</span>
+                      <span className="font-medium text-white">{formatCurrency(calculations.profitInTRY)}</span>
+                    </div>
+                    <div className="border-t border-orange-400/30 pt-3">
+                      <div className="flex justify-between">
+                        <span className="font-semibold text-orange-100">Total Profit ({quantity} pcs)</span>
+                        <span className="font-bold text-white text-xl">
+                          {formatCurrency(calculations.profitInTRY * quantity)}
+                        </span>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-            <p className="text-xs text-muted-foreground text-center">
-              Exchange rate: 1 EUR = 50.43 TRY (manually updated)
-            </p>
+                {/* Print Button */}
+                <Button
+                  onClick={handlePrint}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-white shadow-lg"
+                >
+                  <Printer className="h-4 w-4 mr-2" />
+                  Print Report
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
