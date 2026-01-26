@@ -129,7 +129,7 @@ export default function NewOrder() {
       <div className="mx-auto max-w-2xl space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/orders')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -350,7 +350,7 @@ export default function NewOrder() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => navigate('/orders')}
+                  onClick={() => navigate(-1)}
                 >
                   Cancel
                 </Button>
