@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Separator } from '@/components/ui/separator';
 import { Printer } from 'lucide-react';
 
 type Currency = 'TRY' | 'EUR' | 'USD';
@@ -84,10 +83,8 @@ export default function Calculator() {
           <div className="space-y-6">
             {/* Order Details */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Order Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="pt-6 space-y-4">
+                <h3 className="text-lg font-semibold">Order Details</h3>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="quantity">Quantity</Label>
@@ -131,189 +128,186 @@ export default function Calculator() {
 
             {/* Base Costs */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Base Costs (per piece in TRY)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="fabric">1. Fabric</Label>
-                  <Input
-                    id="fabric"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={fabric || ''}
-                    onChange={(e) => setFabric(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="production">2. Production</Label>
-                  <Input
-                    id="production"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={production || ''}
-                    onChange={(e) => setProduction(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="accessories">3. Accessories</Label>
-                  <Input
-                    id="accessories"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={accessories || ''}
-                    onChange={(e) => setAccessories(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
+              <CardContent className="pt-6 space-y-4">
+                <h3 className="text-lg font-semibold">Base Costs (per piece in TRY)</h3>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="fabric">1. Fabric</Label>
+                    <Input
+                      id="fabric"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={fabric || ''}
+                      onChange={(e) => setFabric(Number(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="production">2. Production</Label>
+                    <Input
+                      id="production"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={production || ''}
+                      onChange={(e) => setProduction(Number(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="accessories">3. Accessories</Label>
+                    <Input
+                      id="accessories"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={accessories || ''}
+                      onChange={(e) => setAccessories(Number(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Pattern Costs */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Pattern Costs (in TRY)</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <Label htmlFor="patternPerPiece">Pattern per Piece</Label>
-                  <Input
-                    id="patternPerPiece"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={patternPerPiece || ''}
-                    onChange={(e) => setPatternPerPiece(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="patternSetup">Pattern Setup (one-time)</Label>
-                  <Input
-                    id="patternSetup"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={patternSetup || ''}
-                    onChange={(e) => setPatternSetup(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
+              <CardContent className="pt-6 space-y-4">
+                <h3 className="text-lg font-semibold">Pattern Costs (in TRY)</h3>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="patternPerPiece">Pattern per Piece</Label>
+                    <Input
+                      id="patternPerPiece"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={patternPerPiece || ''}
+                      onChange={(e) => setPatternPerPiece(Number(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="patternSetup">Pattern Setup (one-time)</Label>
+                    <Input
+                      id="patternSetup"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={patternSetup || ''}
+                      onChange={(e) => setPatternSetup(Number(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Optional Extras */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Optional Extras (per piece in TRY)</CardTitle>
-              </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="embroidery">Embroidery</Label>
-                  <Input
-                    id="embroidery"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={embroidery || ''}
-                    onChange={(e) => setEmbroidery(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="printing">Printing</Label>
-                  <Input
-                    id="printing"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={printing || ''}
-                    onChange={(e) => setPrinting(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="extraFees">Extra Fees</Label>
-                  <Input
-                    id="extraFees"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={extraFees || ''}
-                    onChange={(e) => setExtraFees(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="washing">Washing</Label>
-                  <Input
-                    id="washing"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={washing || ''}
-                    onChange={(e) => setWashing(Number(e.target.value) || 0)}
-                    placeholder="0"
-                  />
+              <CardContent className="pt-6 space-y-4">
+                <h3 className="text-lg font-semibold">Optional Extras (per piece in TRY)</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="embroidery">Embroidery</Label>
+                    <Input
+                      id="embroidery"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={embroidery || ''}
+                      onChange={(e) => setEmbroidery(Number(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="printing">Printing</Label>
+                    <Input
+                      id="printing"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={printing || ''}
+                      onChange={(e) => setPrinting(Number(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="extraFees">Extra Fees</Label>
+                    <Input
+                      id="extraFees"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={extraFees || ''}
+                      onChange={(e) => setExtraFees(Number(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="washing">Washing</Label>
+                    <Input
+                      id="washing"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={washing || ''}
+                      onChange={(e) => setWashing(Number(e.target.value) || 0)}
+                      placeholder="0"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Results Section */}
-          <div className="space-y-6">
+          <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
             {/* Cost Breakdown */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Cost Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="pt-6 space-y-3">
+                <h3 className="text-lg font-semibold">Cost Breakdown</h3>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Fabric</span>
-                  <span className="font-medium">{formatCurrency(fabric)}</span>
+                  <span>{formatCurrency(fabric)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Production</span>
-                  <span className="font-medium">{formatCurrency(production)}</span>
+                  <span>{formatCurrency(production)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Accessories (per piece)</span>
-                  <span className="font-medium">{formatCurrency(accessories)}</span>
+                  <span>{formatCurrency(accessories)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Pattern cost (per piece + setup)</span>
-                  <span className="font-medium">{formatCurrency(patternCostPerPiece)}</span>
+                  <span>{formatCurrency(patternCostPerPiece)}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Extras per piece</span>
-                  <span className="font-medium">{formatCurrency(extrasPerPiece)}</span>
+                  <span>{formatCurrency(extrasPerPiece)}</span>
                 </div>
-                <Separator />
-                <div className="flex justify-between font-semibold">
-                  <span>Total cost per piece</span>
-                  <span>{formatCurrency(totalCostPerPiece)}</span>
-                </div>
-                <div className="flex justify-between font-semibold text-lg">
-                  <span>Total for {quantity} pieces</span>
-                  <span>{formatCurrency(totalCost)}</span>
+                <div className="border-t pt-3 mt-3">
+                  <div className="flex justify-between font-semibold">
+                    <span>Total cost per piece</span>
+                    <span>{formatCurrency(totalCostPerPiece)}</span>
+                  </div>
+                  <div className="flex justify-between font-semibold text-lg mt-2">
+                    <span>Total for {quantity} pieces</span>
+                    <span>{formatCurrency(totalCost)}</span>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
             {/* Cost With Profit */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Cost With Your Profit</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="pt-6 space-y-3">
+                <h3 className="text-lg font-semibold">Cost With Your Profit</h3>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Per piece</span>
-                  <span className="font-medium">{formatCurrency(costWithProfitPerPiece)}</span>
+                  <span>{formatCurrency(costWithProfitPerPiece)}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total ({quantity} pieces)</span>
@@ -324,17 +318,15 @@ export default function Calculator() {
 
             {/* Your Profit */}
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Your Profit</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="pt-6 space-y-3">
+                <h3 className="text-lg font-semibold">Your Profit</h3>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">Per piece</span>
-                  <span className="font-medium">{formatCurrency(profitPerPiece)}</span>
+                  <span>{formatCurrency(profitPerPiece)}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-lg">
                   <span>Total ({quantity} pieces)</span>
-                  <span className="text-green-600">{formatCurrency(totalProfit)}</span>
+                  <span className="text-primary">{formatCurrency(totalProfit)}</span>
                 </div>
               </CardContent>
             </Card>
