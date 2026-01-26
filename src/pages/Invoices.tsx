@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Invoice, InvoiceViewer, InvoiceStatus } from '@/components/invoices/InvoiceViewer';
+import { CreateInvoiceDialog } from '@/components/invoices/CreateInvoiceDialog';
 import {
   FileText,
   Search,
@@ -20,13 +21,10 @@ import {
   Eye,
   Send,
   CheckCircle,
-  Clock,
-  DollarSign,
   AlertCircle,
-  Calculator,
+  Plus,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { Link } from 'react-router-dom';
 
 const STATUS_COLORS: Record<InvoiceStatus, string> = {
   draft: 'bg-gray-100 text-gray-800',
@@ -57,6 +55,7 @@ export default function Invoices() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
+  const [createDialogOpen, setCreateDialogOpen] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -79,13 +78,13 @@ export default function Invoices() {
         .from('invoices')
         .select(`
           *,
-          client:clients(name, brand_name),
+          client:clients(name, brand_name, address),
           order:orders(order_number, product_name)
         `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setInvoices((data || []) as Invoice[]);
+      setInvoices((data || []) as unknown as Invoice[]);
     } catch (error) {
       console.error('Error fetching invoices:', error);
       toast({
@@ -181,11 +180,9 @@ export default function Invoices() {
             <h1 className="text-2xl font-bold">Invoices</h1>
             <p className="text-muted-foreground">Manage your invoices and billing</p>
           </div>
-          <Button asChild className="bg-orange-500 hover:bg-orange-600">
-            <Link to="/calculator">
-              <Calculator className="mr-2 h-4 w-4" />
-              Create from Calculator
-            </Link>
+          <Button onClick={() => setCreateDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Invoice
           </Button>
         </div>
 
@@ -381,6 +378,13 @@ export default function Invoices() {
         open={viewerOpen}
         onOpenChange={setViewerOpen}
         isClientView={false}
+      />
+
+      {/* Create Invoice Dialog */}
+      <CreateInvoiceDialog
+        open={createDialogOpen}
+        onOpenChange={setCreateDialogOpen}
+        onSuccess={fetchInvoices}
       />
     </DashboardLayout>
   );
