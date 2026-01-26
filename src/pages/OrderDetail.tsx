@@ -174,7 +174,8 @@ export default function OrderDetail() {
         description: 'The order has been permanently deleted.',
       });
 
-      navigate('/orders');
+      // Navigate back instead of always going to /orders
+      navigate(-1);
     } catch (error) {
       console.error('Error deleting order:', error);
       toast({
@@ -235,7 +236,7 @@ export default function OrderDetail() {
           order={order}
           canEdit={canEdit}
           isUpdating={isUpdating}
-          onBack={() => navigate('/orders')}
+          onBack={() => navigate(-1)}
           onStageChange={handleStageChange}
           onPriorityChange={handlePriorityChange}
         />

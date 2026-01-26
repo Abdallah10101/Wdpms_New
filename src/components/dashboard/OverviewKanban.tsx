@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, LayoutGrid, List, Plus } from 'lucide-react';
 import { PRODUCTION_STAGES, type ProductionStage, type Order } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
+import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 
 interface OverviewKanbanProps {
   onOrdersLoaded?: (count: number) => void;
@@ -89,9 +90,49 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
     return filteredOrders.filter(order => order.current_stage === stage);
   };
 
-  const getStageColor = (stage: ProductionStage) => {
-    const config = PRODUCTION_STAGES.find(s => s.value === stage);
-    return config?.color || 'bg-gray-500';
+  const handleDragEnd = async (result: DropResult) => {
+    const { destination, source, draggableId } = result;
+
+    // Dropped outside a droppable area
+    if (!destination) return;
+
+    // Dropped in the same position
+    if (destination.droppableId === source.droppableId && destination.index === source.index) {
+      return;
+    }
+
+    const newStage = destination.droppableId as ProductionStage;
+    const orderId = draggableId;
+
+    // Optimistic update
+    setOrders(prevOrders =>
+      prevOrders.map(order =>
+        order.id === orderId ? { ...order, current_stage: newStage } : order
+      )
+    );
+
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ current_stage: newStage })
+        .eq('id', orderId);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Stage Updated',
+        description: `Order moved to ${PRODUCTION_STAGES.find(s => s.value === newStage)?.label}`,
+      });
+    } catch (error) {
+      console.error('Error updating order stage:', error);
+      // Revert on error
+      fetchOrders();
+      toast({
+        title: 'Error',
+        description: 'Failed to update order stage.',
+        variant: 'destructive',
+      });
+    }
   };
 
   if (isLoading) {
@@ -165,60 +206,81 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
       <CardContent className="p-0">
         {viewMode === 'board' ? (
           <ScrollArea className="w-full">
-            <div className="flex gap-3 p-4 min-w-max">
-              {PRODUCTION_STAGES.map(stage => {
-                const stageOrders = getOrdersByStage(stage.value);
-                return (
-                  <div key={stage.value} className="w-[180px] flex-shrink-0">
-                    {/* Column Header */}
-                    <div className="mb-3 flex items-center gap-2">
-                      <Badge className={`${stage.color} text-white text-xs px-2 py-0.5`}>
-                        {stage.label}
-                      </Badge>
-                      <span className="text-xs text-muted-foreground">
-                        {stageOrders.length}
-                      </span>
-                    </div>
+            <DragDropContext onDragEnd={handleDragEnd}>
+              <div className="flex gap-3 p-4 min-w-max">
+                {PRODUCTION_STAGES.map(stage => {
+                  const stageOrders = getOrdersByStage(stage.value);
+                  return (
+                    <div key={stage.value} className="w-[180px] flex-shrink-0">
+                      {/* Column Header */}
+                      <div className="mb-3 flex items-center gap-2">
+                        <Badge className={`${stage.color} text-white text-xs px-2 py-0.5`}>
+                          {stage.label}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">
+                          {stageOrders.length}
+                        </span>
+                      </div>
 
-                    {/* Column Content */}
-                    <div className="space-y-2 min-h-[200px]">
-                      {stageOrders.map(order => (
-                        <div
-                          key={order.id}
-                          onClick={() => navigate(`/orders/${order.id}`)}
-                          className="group cursor-pointer rounded-md border border-border/50 bg-card p-2.5 transition-all hover:border-primary/50 hover:bg-accent/50"
-                        >
-                          <div className="flex items-start gap-2">
-                            <div
-                              className={`mt-1 h-2 w-2 rounded-sm flex-shrink-0 ${stage.color}`}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate leading-tight">
-                                {order.product_name}
-                              </p>
-                              {order.client && (
-                                <p className="text-xs text-muted-foreground truncate mt-0.5">
-                                  {(order.client as any)?.brand_name || (order.client as any)?.name}
-                                </p>
-                              )}
-                            </div>
+                      {/* Column Content - Droppable */}
+                      <Droppable droppableId={stage.value}>
+                        {(provided, snapshot) => (
+                          <div
+                            ref={provided.innerRef}
+                            {...provided.droppableProps}
+                            className={`space-y-2 min-h-[200px] rounded-lg p-2 transition-colors ${
+                              snapshot.isDraggingOver ? 'bg-primary/10 border-2 border-dashed border-primary/30' : 'bg-muted/20'
+                            }`}
+                          >
+                            {stageOrders.map((order, index) => (
+                              <Draggable key={order.id} draggableId={order.id} index={index}>
+                                {(provided, snapshot) => (
+                                  <div
+                                    ref={provided.innerRef}
+                                    {...provided.draggableProps}
+                                    {...provided.dragHandleProps}
+                                    onClick={() => !snapshot.isDragging && navigate(`/orders/${order.id}`)}
+                                    className={`group cursor-grab active:cursor-grabbing rounded-md border border-border/50 bg-card p-2.5 transition-all hover:border-primary/50 hover:bg-accent/50 ${
+                                      snapshot.isDragging ? 'shadow-lg ring-2 ring-primary/30' : ''
+                                    }`}
+                                  >
+                                    <div className="flex items-start gap-2">
+                                      <div
+                                        className={`mt-1 h-2 w-2 rounded-sm flex-shrink-0 ${stage.color}`}
+                                      />
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate leading-tight">
+                                          {order.product_name}
+                                        </p>
+                                        {order.client && (
+                                          <p className="text-xs text-muted-foreground truncate mt-0.5">
+                                            {(order.client as any)?.brand_name || (order.client as any)?.name}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </Draggable>
+                            ))}
+                            {provided.placeholder}
+
+                            {/* Add Item Placeholder */}
+                            <button
+                              onClick={() => navigate('/orders/new')}
+                              className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
+                            >
+                              <Plus className="h-3 w-3" />
+                              New item
+                            </button>
                           </div>
-                        </div>
-                      ))}
-
-                      {/* Add Item Placeholder */}
-                      <button
-                        onClick={() => navigate('/orders/new')}
-                        className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-accent/50 hover:text-foreground transition-colors"
-                      >
-                        <Plus className="h-3 w-3" />
-                        New item
-                      </button>
+                        )}
+                      </Droppable>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            </DragDropContext>
             <ScrollBar orientation="horizontal" />
           </ScrollArea>
         ) : (
