@@ -34,8 +34,7 @@ export default function NewOrder() {
     client_id: '',
     collection: '',
     size: '',
-    fabric: '',
-    supplier: '',
+    notes: '',
     quantity: 1,
     delivery_date: '',
     priority: 'medium' as OrderPriority,
@@ -87,8 +86,8 @@ export default function NewOrder() {
           client_id: formData.client_id,
           collection: formData.collection || null,
           size: formData.size || null,
-          fabric: formData.fabric || null,
-          supplier: formData.supplier || null,
+          fabric: formData.notes || null, // Using fabric column for notes
+          supplier: null,
           quantity: formData.quantity,
           delivery_date: formData.delivery_date || null,
           priority: formData.priority,
@@ -217,25 +216,16 @@ export default function NewOrder() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="fabric">Fabric</Label>
-                  <Input
-                    id="fabric"
-                    value={formData.fabric}
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="notes">Notes</Label>
+                  <Textarea
+                    id="notes"
+                    placeholder="Add any notes about the product..."
+                    value={formData.notes}
                     onChange={(e) =>
-                      setFormData({ ...formData, fabric: e.target.value })
+                      setFormData({ ...formData, notes: e.target.value })
                     }
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="supplier">Supplier</Label>
-                  <Input
-                    id="supplier"
-                    value={formData.supplier}
-                    onChange={(e) =>
-                      setFormData({ ...formData, supplier: e.target.value })
-                    }
+                    rows={3}
                   />
                 </div>
 
