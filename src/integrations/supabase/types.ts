@@ -856,7 +856,12 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: never; Returns: boolean }
+      is_assigned_to_client: { Args: { _client_id: string }; Returns: boolean }
       is_assigned_to_order: { Args: { _order_id: string }; Returns: boolean }
+      is_assigned_to_profile: {
+        Args: { _profile_user_id: string }
+        Returns: boolean
+      }
       is_client: { Args: never; Returns: boolean }
       is_client_of_order: { Args: { _order_id: string }; Returns: boolean }
       is_team: { Args: never; Returns: boolean }
