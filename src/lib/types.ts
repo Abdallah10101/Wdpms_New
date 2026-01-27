@@ -198,6 +198,26 @@ export const PRODUCTION_STAGES: { value: ProductionStage; label: string; color: 
   { value: 'delivered', label: 'Delivered', color: 'bg-emerald-500' },
 ];
 
+// Bulk order stages (excludes sample - starts with cutting)
+export const BULK_PRODUCTION_STAGES = PRODUCTION_STAGES.filter(
+  s => s.value !== 'not_started' && s.value !== 'sample'
+);
+
+// Sample order stages (includes sample stage)
+export const SAMPLE_PRODUCTION_STAGES = PRODUCTION_STAGES.filter(
+  s => s.value !== 'not_started'
+);
+
+// Helper to get appropriate stages based on order type
+export function getOrderStages(orderType: 'sample' | 'bulk' | null | undefined) {
+  return orderType === 'sample' ? SAMPLE_PRODUCTION_STAGES : BULK_PRODUCTION_STAGES;
+}
+
+// Helper to check if order is sample or bulk (stored in supplier column)
+export function getOrderType(order: Order): 'sample' | 'bulk' {
+  return order.supplier === 'sample' ? 'sample' : 'bulk';
+}
+
 export const PRIORITY_CONFIG: { value: OrderPriority; label: string; color: string }[] = [
   { value: 'low', label: 'Low', color: 'bg-gray-500' },
   { value: 'medium', label: 'Medium', color: 'bg-blue-500' },

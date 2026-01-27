@@ -17,8 +17,10 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Printer, Sparkles, Waves } from 'lucide-react';
+import { ArrowLeft, Loader2, Printer, Sparkles, Waves, Layers, FlaskConical } from 'lucide-react';
 import { PRIORITY_CONFIG, type Client, type OrderPriority } from '@/lib/types';
+
+type OrderType = 'sample' | 'bulk';
 
 export default function NewOrder() {
   const navigate = useNavigate();
@@ -28,6 +30,7 @@ export default function NewOrder() {
   const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [orderType, setOrderType] = useState<OrderType | null>(null);
 
   const [formData, setFormData] = useState({
     product_name: '',
@@ -79,15 +82,18 @@ export default function NewOrder() {
     setIsSubmitting(true);
 
     try {
+      // For sample orders, start at 'sample' stage; for bulk, start at 'cutting'
+      const initialStage = orderType === 'sample' ? 'sample' : 'cutting';
+      
       const { data, error } = await supabase
         .from('orders')
         .insert({
           product_name: formData.product_name,
           client_id: formData.client_id,
           collection: formData.collection || null,
-          size: formData.size || null,
+          size: orderType === 'sample' ? (formData.size || null) : null, // Only save size for samples
           fabric: formData.notes || null, // Using fabric column for notes
-          supplier: null,
+          supplier: orderType, // Store order type in supplier column
           quantity: formData.quantity,
           delivery_date: formData.delivery_date || null,
           priority: formData.priority,
@@ -95,6 +101,7 @@ export default function NewOrder() {
           has_printing: formData.has_printing,
           has_embroidery: formData.has_embroidery,
           has_wash_house: formData.has_wash_house,
+          current_stage: initialStage,
         } as any)
         .select()
         .single();
@@ -128,21 +135,67 @@ export default function NewOrder() {
       <div className="mx-auto max-w-2xl space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
+          <Button variant="ghost" size="icon" onClick={() => orderType ? setOrderType(null) : navigate(-1)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">New Order</h1>
-            <p className="text-muted-foreground">Create a new production order</p>
+            <p className="text-muted-foreground">
+              {orderType ? `Create a new ${orderType} order` : 'Select order type'}
+            </p>
           </div>
         </div>
 
+        {/* Order Type Selection */}
+        {!orderType && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Select Order Type</CardTitle>
+              <CardDescription>
+                Choose whether this is a sample or bulk order
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setOrderType('sample')}
+                  className="flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 transition-all"
+                >
+                  <FlaskConical className="h-12 w-12 text-purple-500" />
+                  <div className="text-center">
+                    <h3 className="font-semibold text-lg">Sample</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Create a sample order with size specifications
+                    </p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOrderType('bulk')}
+                  className="flex flex-col items-center justify-center gap-3 p-6 rounded-lg border-2 border-border hover:border-primary hover:bg-primary/5 transition-all"
+                >
+                  <Layers className="h-12 w-12 text-blue-500" />
+                  <div className="text-center">
+                    <h3 className="font-semibold text-lg">Bulk</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Create a bulk production order
+                    </p>
+                  </div>
+                </button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Order Form - Only show after type selection */}
+        {orderType && (
         <form onSubmit={handleSubmit}>
           <Card>
             <CardHeader>
               <CardTitle>Order Details</CardTitle>
               <CardDescription>
-                Fill in the order information
+                Fill in the {orderType} order information
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -205,16 +258,19 @@ export default function NewOrder() {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="size">Size</Label>
-                  <Input
-                    id="size"
-                    value={formData.size}
-                    onChange={(e) =>
-                      setFormData({ ...formData, size: e.target.value })
-                    }
-                  />
-                </div>
+                {/* Only show size field for sample orders */}
+                {orderType === 'sample' && (
+                  <div className="space-y-2">
+                    <Label htmlFor="size">Size</Label>
+                    <Input
+                      id="size"
+                      value={formData.size}
+                      onChange={(e) =>
+                        setFormData({ ...formData, size: e.target.value })
+                      }
+                    />
+                  </div>
+                )}
 
                 <div className="space-y-2 sm:col-span-2">
                   <Label htmlFor="notes">Notes</Label>
@@ -358,6 +414,7 @@ export default function NewOrder() {
             </CardContent>
           </Card>
         </form>
+        )}
       </div>
     </DashboardLayout>
   );
