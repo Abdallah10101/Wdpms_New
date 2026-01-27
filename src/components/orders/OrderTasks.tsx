@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ListTodo, Plus, Trash2, X, CheckSquare } from 'lucide-react';
+import { ListTodo, Plus, Trash2, X, CheckSquare, Pencil, Check } from 'lucide-react';
 import type { OrderTask, TaskStatus } from '@/lib/types';
 import {
   AlertDialog,
@@ -35,6 +35,9 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchTasks();
@@ -117,6 +120,60 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
         .eq('id', task.id);
 
       if (error) throw error;
+    } catch (error) {
+      console.error('Error updating task:', error);
+      fetchTasks(); // Revert on error
+      toast({
+        title: 'Error',
+        description: 'Failed to update task.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const startEditingTask = (task: OrderTask) => {
+    setEditingTaskId(task.id);
+    setEditingTitle(task.title);
+    setTimeout(() => editInputRef.current?.focus(), 0);
+  };
+
+  const cancelEditing = () => {
+    setEditingTaskId(null);
+    setEditingTitle('');
+  };
+
+  const handleUpdateTask = async (taskId: string) => {
+    if (!editingTitle.trim()) {
+      cancelEditing();
+      return;
+    }
+
+    const originalTask = tasks.find(t => t.id === taskId);
+    if (!originalTask || originalTask.title === editingTitle.trim()) {
+      cancelEditing();
+      return;
+    }
+
+    // Optimistic update
+    setTasks(prev => 
+      prev.map(t => 
+        t.id === taskId ? { ...t, title: editingTitle.trim() } : t
+      )
+    );
+    cancelEditing();
+
+    try {
+      const { error } = await supabase
+        .from('order_tasks')
+        .update({ title: editingTitle.trim() })
+        .eq('id', taskId);
+
+      if (error) throw error;
+      
+      toast({
+        title: 'Task Updated',
+        description: 'The task has been updated.',
+      });
     } catch (error) {
       console.error('Error updating task:', error);
       fetchTasks(); // Revert on error
@@ -340,26 +397,55 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p
-                  className={`text-sm ${
-                    task.status === 'done' ? 'line-through text-muted-foreground' : ''
-                  }`}
-                >
-                  {task.title}
-                </p>
-                {task.description && (
-                  <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
+                {editingTaskId === task.id ? (
+                  <div className="flex items-center gap-2">
+                    <Input
+                      ref={editInputRef}
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleUpdateTask(task.id);
+                        if (e.key === 'Escape') cancelEditing();
+                      }}
+                      onBlur={() => handleUpdateTask(task.id)}
+                      className="h-7 text-sm"
+                    />
+                  </div>
+                ) : (
+                  <>
+                    <p
+                      className={`text-sm ${
+                        task.status === 'done' ? 'line-through text-muted-foreground' : ''
+                      } ${canManageTasks && !isSelectionMode ? 'cursor-pointer hover:text-primary' : ''}`}
+                      onClick={() => canManageTasks && !isSelectionMode && startEditingTask(task)}
+                    >
+                      {task.title}
+                    </p>
+                    {task.description && (
+                      <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
+                    )}
+                  </>
                 )}
               </div>
-              {canManageTasks && !isSelectionMode && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 flex-shrink-0 transition-opacity"
-                  onClick={() => confirmDelete(task.id)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+              {canManageTasks && !isSelectionMode && editingTaskId !== task.id && (
+                <div className="flex items-center gap-1 flex-shrink-0">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-primary hover:bg-primary/10 transition-opacity"
+                    onClick={() => startEditingTask(task)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 transition-opacity"
+                    onClick={() => confirmDelete(task.id)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               )}
             </div>
           ))
