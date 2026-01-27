@@ -6,7 +6,7 @@ import { Separator } from '@/components/ui/separator';
 import { Printer, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
-
+import { escapeHtml } from '@/lib/html-escape';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'partially_paid' | 'paid' | 'overdue';
 
 export interface InvoiceItem {
@@ -135,20 +135,23 @@ export function InvoiceViewer({
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const clientName = invoice.client?.brand_name || invoice.client?.name || 'Client';
-    const clientAddress = invoice.client?.address || '';
+    // Escape all user-provided data to prevent XSS
+    const clientName = escapeHtml(invoice.client?.brand_name || invoice.client?.name || 'Client');
+    const clientAddress = escapeHtml(invoice.client?.address || '');
+    const invoiceNumber = escapeHtml(invoice.invoice_number);
+    const orderName = escapeHtml(invoice.order_name);
     
-    // Generate line items HTML
+    // Generate line items HTML with escaped content
     const itemsHtml = items.length > 0 
       ? items.map(item => `
           <tr>
             <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; width: 60px; vertical-align: top; font-weight: 500;">${item.quantity}</td>
             <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; vertical-align: top;">
-              <div style="font-weight: 600;">${item.product_name}</div>
+              <div style="font-weight: 600;">${escapeHtml(item.product_name)}</div>
               ${item.inclusions && item.inclusions.length > 0 ? `
                 <div style="color: #78716c; font-size: 13px; margin-top: 6px;">
                   <div>includes :</div>
-                  ${item.inclusions.map(inc => `<div>- ${inc}</div>`).join('')}
+                  ${item.inclusions.map(inc => `<div>- ${escapeHtml(inc)}</div>`).join('')}
                 </div>
               ` : ''}
             </td>
@@ -158,13 +161,13 @@ export function InvoiceViewer({
         `).join('')
       : `<tr>
           <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4;">${invoice.quantity}</td>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4;">${invoice.order_name}</td>
+          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4;">${orderName}</td>
           <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${(invoice.wholesale_price).toFixed(2)}</td>
           <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${(invoice.wholesale_price * invoice.quantity).toFixed(2)}</td>
         </tr>`;
 
     const termsHtml = invoice.terms_and_conditions 
-      ? invoice.terms_and_conditions.split('\n').map(line => `<div>${line}</div>`).join('')
+      ? invoice.terms_and_conditions.split('\n').map(line => `<div>${escapeHtml(line)}</div>`).join('')
       : '';
     
     const html = `
@@ -230,7 +233,7 @@ export function InvoiceViewer({
           <div class="invoice-meta">
             <div class="invoice-meta-row">
               <span class="invoice-meta-label">INVOICE #</span>
-              <span class="invoice-meta-value">${invoice.invoice_number.replace('INV-', '').replace(/-/g, '')}</span>
+              <span class="invoice-meta-value">${escapeHtml(invoice.invoice_number.replace('INV-', '').replace(/-/g, ''))}</span>
             </div>
             <div class="invoice-meta-row">
               <span class="invoice-meta-label">INVOICE DATE</span>
