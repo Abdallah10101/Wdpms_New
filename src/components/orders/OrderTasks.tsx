@@ -7,8 +7,18 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ListTodo, Plus, Trash2, GripVertical } from 'lucide-react';
+import { ListTodo, Plus, Trash2, X, CheckSquare } from 'lucide-react';
 import type { OrderTask, TaskStatus } from '@/lib/types';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 interface OrderTasksProps {
   orderId: string;
@@ -21,6 +31,10 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
   const [newTaskTitle, setNewTaskTitle] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     fetchTasks();
@@ -83,6 +97,15 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
   const handleToggleTask = async (task: OrderTask) => {
     const newStatus: TaskStatus = task.status === 'done' ? 'pending' : 'done';
     
+    // Optimistic update
+    setTasks(prev => 
+      prev.map(t => 
+        t.id === task.id 
+          ? { ...t, status: newStatus, completed_at: newStatus === 'done' ? new Date().toISOString() : null }
+          : t
+      )
+    );
+
     try {
       const { error } = await supabase
         .from('order_tasks')
@@ -94,16 +117,9 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
         .eq('id', task.id);
 
       if (error) throw error;
-      
-      setTasks(prev => 
-        prev.map(t => 
-          t.id === task.id 
-            ? { ...t, status: newStatus, completed_at: newStatus === 'done' ? new Date().toISOString() : null }
-            : t
-        )
-      );
     } catch (error) {
       console.error('Error updating task:', error);
+      fetchTasks(); // Revert on error
       toast({
         title: 'Error',
         description: 'Failed to update task.',
@@ -113,6 +129,11 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
   };
 
   const handleDeleteTask = async (taskId: string) => {
+    // Optimistic update
+    setTasks(prev => prev.filter(t => t.id !== taskId));
+    setTaskToDelete(null);
+    setDeleteDialogOpen(false);
+
     try {
       const { error } = await supabase
         .from('order_tasks')
@@ -120,7 +141,6 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
         .eq('id', taskId);
 
       if (error) throw error;
-      fetchTasks();
       
       toast({
         title: 'Task Deleted',
@@ -128,6 +148,7 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
       });
     } catch (error) {
       console.error('Error deleting task:', error);
+      fetchTasks(); // Revert on error
       toast({
         title: 'Error',
         description: 'Failed to delete task.',
@@ -136,17 +157,134 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
     }
   };
 
+  const handleBulkDelete = async () => {
+    if (selectedTasks.size === 0) return;
+
+    const tasksToDelete = Array.from(selectedTasks);
+    
+    // Optimistic update
+    setTasks(prev => prev.filter(t => !selectedTasks.has(t.id)));
+    setSelectedTasks(new Set());
+    setIsSelectionMode(false);
+    setDeleteDialogOpen(false);
+
+    try {
+      const { error } = await supabase
+        .from('order_tasks')
+        .delete()
+        .in('id', tasksToDelete);
+
+      if (error) throw error;
+      
+      toast({
+        title: 'Tasks Deleted',
+        description: `${tasksToDelete.length} task(s) have been removed.`,
+      });
+    } catch (error) {
+      console.error('Error deleting tasks:', error);
+      fetchTasks(); // Revert on error
+      toast({
+        title: 'Error',
+        description: 'Failed to delete tasks.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTasks(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedTasks.size === tasks.length) {
+      setSelectedTasks(new Set());
+    } else {
+      setSelectedTasks(new Set(tasks.map(t => t.id)));
+    }
+  };
+
+  const confirmDelete = (taskId: string) => {
+    setTaskToDelete(taskId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmBulkDelete = () => {
+    setTaskToDelete(null);
+    setDeleteDialogOpen(true);
+  };
+
   const canManageTasks = role === 'admin' || role === 'team';
   const completedCount = tasks.filter(t => t.status === 'done').length;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2">
-        <ListTodo className="h-5 w-5 text-primary" />
-        <h3 className="font-semibold">To Do List</h3>
-        <Badge variant="secondary" className="text-xs">
-          {completedCount}/{tasks.length}
-        </Badge>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ListTodo className="h-5 w-5 text-primary" />
+          <h3 className="font-semibold">To Do List</h3>
+          <Badge variant="secondary" className="text-xs">
+            {completedCount}/{tasks.length}
+          </Badge>
+        </div>
+
+        {/* Bulk Actions */}
+        {canManageTasks && tasks.length > 0 && (
+          <div className="flex items-center gap-2">
+            {isSelectionMode ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={toggleSelectAll}
+                  className="h-7 text-xs"
+                >
+                  <CheckSquare className="h-3.5 w-3.5 mr-1" />
+                  {selectedTasks.size === tasks.length ? 'Deselect All' : 'Select All'}
+                </Button>
+                {selectedTasks.size > 0 && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={confirmBulkDelete}
+                    className="h-7 text-xs"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" />
+                    Delete ({selectedTasks.size})
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setIsSelectionMode(false);
+                    setSelectedTasks(new Set());
+                  }}
+                  className="h-7 text-xs"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsSelectionMode(true)}
+                className="h-7 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <CheckSquare className="h-3.5 w-3.5 mr-1" />
+                Select
+              </Button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Add Task Form */}
@@ -181,18 +319,25 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
           tasks.map((task) => (
             <div
               key={task.id}
-              className={`flex items-start gap-3 p-3 rounded-lg border transition-colors ${
+              className={`group flex items-start gap-3 p-3 rounded-lg border transition-colors ${
                 task.status === 'done' ? 'bg-muted/30' : 'bg-card hover:bg-muted/20'
-              }`}
+              } ${selectedTasks.has(task.id) ? 'ring-2 ring-primary/50 bg-primary/5' : ''}`}
             >
               <div className="flex items-center gap-2 pt-0.5">
-                <GripVertical className="h-4 w-4 text-muted-foreground/50 cursor-grab" />
-                <Checkbox
-                  checked={task.status === 'done'}
-                  onCheckedChange={() => handleToggleTask(task)}
-                  disabled={!canManageTasks}
-                  className="border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
-                />
+                {isSelectionMode ? (
+                  <Checkbox
+                    checked={selectedTasks.has(task.id)}
+                    onCheckedChange={() => toggleTaskSelection(task.id)}
+                    className="border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                ) : (
+                  <Checkbox
+                    checked={task.status === 'done'}
+                    onCheckedChange={() => handleToggleTask(task)}
+                    disabled={!canManageTasks}
+                    className="border-primary data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+                  />
+                )}
               </div>
               <div className="flex-1 min-w-0">
                 <p
@@ -206,12 +351,12 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
                   <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
                 )}
               </div>
-              {canManageTasks && (
+              {canManageTasks && !isSelectionMode && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-8 w-8 text-muted-foreground hover:text-destructive flex-shrink-0"
-                  onClick={() => handleDeleteTask(task.id)}
+                  className="h-8 w-8 text-muted-foreground opacity-0 group-hover:opacity-100 hover:text-destructive hover:bg-destructive/10 flex-shrink-0 transition-opacity"
+                  onClick={() => confirmDelete(task.id)}
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
@@ -220,6 +365,32 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {taskToDelete ? 'Delete Task' : `Delete ${selectedTasks.size} Task(s)`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {taskToDelete 
+                ? 'This will permanently remove this task. This action cannot be undone.'
+                : `This will permanently remove ${selectedTasks.size} selected task(s). This action cannot be undone.`
+              }
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => taskToDelete ? handleDeleteTask(taskToDelete) : handleBulkDelete()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
