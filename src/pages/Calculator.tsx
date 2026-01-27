@@ -10,6 +10,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Printer, Plus, X, ChevronDown, ChevronUp, FileText } from "lucide-react";
 import { CreateInvoiceDialog } from "@/components/invoices/CreateInvoiceDialog";
 import { useToast } from "@/hooks/use-toast";
+import { escapeHtml } from "@/lib/html-escape";
 type Currency = "TRY" | "EUR";
 
 interface Accessory {
@@ -171,11 +172,14 @@ export default function Calculator() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
 
+    // Escape user-provided data to prevent XSS
+    const safeOrderName = escapeHtml(orderName || "Untitled Order");
+
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Pricing Report - ${orderName || "Untitled Order"}</title>
+        <title>Pricing Report - ${safeOrderName}</title>
         <style>
           * { margin: 0; padding: 0; box-sizing: border-box; }
           body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; background: #fafaf9; color: #1c1917; }
@@ -203,7 +207,7 @@ export default function Calculator() {
       <body>
         <div class="header">
           <h1>WDS Pricing Report</h1>
-          <p>${orderName || "Untitled Order"}</p>
+          <p>${safeOrderName}</p>
         </div>
         
         <div class="meta">
@@ -233,7 +237,7 @@ export default function Calculator() {
           <h2>Accessories Breakdown</h2>
           ${accessories.map(acc => `
             <div class="row">
-              <label>${acc.type} (${acc.quantity} × ${formatCurrency(acc.pricePerUnit)})</label>
+              <label>${escapeHtml(acc.type)} (${acc.quantity} × ${formatCurrency(acc.pricePerUnit)})</label>
               <value>${formatCurrency((acc.quantity * acc.pricePerUnit) / quantity)}</value>
             </div>
           `).join('')}
