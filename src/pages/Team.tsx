@@ -113,10 +113,10 @@ export default function Team() {
       return;
     }
 
-    if (newPassword.length < 6) {
+    if (newPassword.length < 8) {
       toast({
         title: 'Password too short',
-        description: 'Password must be at least 6 characters.',
+        description: 'Password must be at least 8 characters.',
         variant: 'destructive',
       });
       return;
@@ -340,8 +340,8 @@ export default function Team() {
                       <Label htmlFor="password">Password</Label>
                       <Input
                         id="password"
-                        type="text"
-                        placeholder="Minimum 6 characters"
+                        type="password"
+                        placeholder="Minimum 8 characters"
                         value={newPassword}
                         onChange={(e) => setNewPassword(e.target.value)}
                         disabled={isSubmitting}
