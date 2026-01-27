@@ -30,6 +30,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
+import { ThemeToggle } from '@/components/ThemeToggle';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -255,8 +256,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <Menu className="h-5 w-5" />
           </Button>
           <div className="flex-1" />
-          {/* Notification bell for clients */}
-          {role === 'client' && <NotificationBell />}
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            {/* Notification bell for clients */}
+            {role === 'client' && <NotificationBell />}
+          </div>
         </header>
 
         {/* Page content */}
