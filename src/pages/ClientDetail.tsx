@@ -32,21 +32,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import type { Client, Order, OrderFile, PRODUCTION_STAGES } from '@/lib/types';
-
-const STAGES: typeof PRODUCTION_STAGES = [
-  { value: 'not_started', label: 'Not Started', color: 'bg-gray-500' },
-  { value: 'sample', label: 'Sample', color: 'bg-purple-500' },
-  { value: 'cutting', label: 'Cutting', color: 'bg-blue-500' },
-  { value: 'printing', label: 'Printing', color: 'bg-fuchsia-500' },
-  { value: 'embroidery', label: 'Embroidery', color: 'bg-pink-500' },
-  { value: 'sewing', label: 'Sewing', color: 'bg-orange-500' },
-  { value: 'wash_house', label: 'Wash House', color: 'bg-cyan-500' },
-  { value: 'qc', label: 'QC', color: 'bg-yellow-500' },
-  { value: 'packaging', label: 'Packaging', color: 'bg-green-500' },
-  { value: 'shipping', label: 'Shipping', color: 'bg-sky-500' },
-  { value: 'delivered', label: 'Delivered', color: 'bg-emerald-500' },
-];
+import { PRODUCTION_STAGES, type Client, type Order, type OrderFile } from '@/lib/types';
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -123,7 +109,7 @@ export default function ClientDetail() {
   };
 
   const getStageConfig = (stage: string) => {
-    return STAGES.find(s => s.value === stage) || STAGES[0];
+    return PRODUCTION_STAGES.find(s => s.value === stage) || PRODUCTION_STAGES[0];
   };
 
   const handleDeleteClient = async () => {
@@ -160,7 +146,7 @@ export default function ClientDetail() {
   const completedOrders = orders.filter(o => o.current_stage === 'delivered');
 
   // Group active orders by stage for kanban-like view
-  const ordersByStage = STAGES.reduce((acc, stage) => {
+  const ordersByStage = PRODUCTION_STAGES.reduce((acc, stage) => {
     acc[stage.value] = activeOrders.filter(o => o.current_stage === stage.value);
     return acc;
   }, {} as Record<string, Order[]>);
@@ -290,7 +276,7 @@ export default function ClientDetail() {
             ) : (
               <div className="overflow-x-auto pb-4">
                 <div className="flex gap-4 min-w-max">
-                  {STAGES.filter(stage => stage.value !== 'delivered').map((stage) => {
+                  {PRODUCTION_STAGES.filter(stage => stage.value !== 'delivered').map((stage) => {
                     const stageOrders = ordersByStage[stage.value] || [];
                     if (stageOrders.length === 0) return null;
                     
