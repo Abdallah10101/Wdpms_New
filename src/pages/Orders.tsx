@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search, ArrowLeft, Package } from 'lucide-react';
+import { Search, ArrowLeft, Package } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 import type { Order, Client } from '@/lib/types';
 import { ClientCard } from '@/components/orders/ClientCard';
@@ -160,14 +160,6 @@ export default function Orders() {
               </p>
             </div>
           </div>
-          {role === 'admin' && (
-            <Button asChild>
-              <Link to="/orders/new">
-                <Plus className="mr-2 h-4 w-4" />
-                New Order
-              </Link>
-            </Button>
-          )}
         </div>
 
         {/* Live Activity Feed - Show when client is selected */}
