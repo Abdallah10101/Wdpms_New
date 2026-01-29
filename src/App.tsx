@@ -17,7 +17,6 @@ import ClientFiles from "./pages/ClientFiles";
 import Leads from "./pages/Leads";
 import Suppliers from "./pages/Suppliers";
 import Team from "./pages/Team";
-import Tasks from "./pages/Tasks";
 import Settings from "./pages/Settings";
 import Calculator from "./pages/Calculator";
 import Invoices from "./pages/Invoices";
@@ -47,7 +46,6 @@ const App = () => (
             <Route path="/leads" element={<Leads />} />
             <Route path="/suppliers" element={<Suppliers />} />
             <Route path="/team" element={<Team />} />
-            <Route path="/tasks" element={<Tasks />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/calculator" element={<Calculator />} />
             <Route path="/invoices" element={<Invoices />} />

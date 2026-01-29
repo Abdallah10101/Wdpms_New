@@ -10,26 +10,23 @@ import { supabase } from '@/integrations/supabase/client';
 import {
   Package,
   Users,
-  ClipboardList,
   Beaker,
+  Boxes,
   Truck,
   AlertTriangle,
   Plus,
   ArrowRight,
-  CheckCircle2,
 } from 'lucide-react';
 import { PRODUCTION_STAGES, type ProductionStage, type Order } from '@/lib/types';
 import { DualOverviewKanban } from '@/components/dashboard/DualOverviewKanban';
 
 interface DashboardStats {
   totalOrders: number;
-  inProduction: number;
-  inQC: number;
   shipped: number;
   totalClients: number;
-  pendingTasks: number;
   overdueOrders: number;
   sampleCount: number;
+  bulkCount: number;
 }
 
 export default function Dashboard() {
@@ -80,25 +77,16 @@ export default function Dashboard() {
         clientsCount = count || 0;
       }
 
-      // Fetch pending tasks
-      const { count: pendingTasksCount } = await supabase
-        .from('order_tasks')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['pending', 'in_progress']);
-
       // Calculate stats
       const today = new Date().toISOString().split('T')[0];
-      const inProductionStages: ProductionStage[] = ['sample', 'cutting', 'printing', 'embroidery', 'sewing', 'wash_house'];
       
       const calculatedStats: DashboardStats = {
         totalOrders: allOrders?.length || 0,
-        inProduction: allOrders?.filter(o => inProductionStages.includes(o.current_stage as ProductionStage)).length || 0,
-        inQC: allOrders?.filter(o => o.current_stage === 'qc').length || 0,
         shipped: allOrders?.filter(o => ['shipping', 'delivered'].includes(o.current_stage)).length || 0,
         totalClients: clientsCount,
-        pendingTasks: pendingTasksCount || 0,
         overdueOrders: allOrders?.filter(o => o.delivery_date && o.delivery_date < today && o.current_stage !== 'delivered').length || 0,
         sampleCount: allOrders?.filter(o => o.supplier === 'sample' && o.current_stage !== 'delivered').length || 0,
+        bulkCount: allOrders?.filter(o => o.supplier !== 'sample' && o.current_stage !== 'delivered').length || 0,
       };
 
       setStats(calculatedStats);
@@ -140,7 +128,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
@@ -157,6 +145,20 @@ export default function Dashboard() {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Bulk</CardTitle>
+              <Boxes className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <div className="text-2xl font-bold text-blue-600">{stats?.bulkCount || 0}</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Samples</CardTitle>
               <Beaker className="h-4 w-4 text-purple-500" />
             </CardHeader>
@@ -165,34 +167,6 @@ export default function Dashboard() {
                 <Skeleton className="h-8 w-20" />
               ) : (
                 <div className="text-2xl font-bold text-purple-600">{stats?.sampleCount || 0}</div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">In Production</CardTitle>
-              <ClipboardList className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <div className="text-2xl font-bold">{stats?.inProduction || 0}</div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">In QC</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              {isLoading ? (
-                <Skeleton className="h-8 w-20" />
-              ) : (
-                <div className="text-2xl font-bold">{stats?.inQC || 0}</div>
               )}
             </CardContent>
           </Card>
@@ -214,7 +188,7 @@ export default function Dashboard() {
 
         {/* Secondary Stats */}
         {role === 'admin' && (
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
@@ -225,20 +199,6 @@ export default function Dashboard() {
                   <Skeleton className="h-8 w-20" />
                 ) : (
                   <div className="text-2xl font-bold">{stats?.totalClients || 0}</div>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">Pending Tasks</CardTitle>
-                <ClipboardList className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-20" />
-                ) : (
-                  <div className="text-2xl font-bold">{stats?.pendingTasks || 0}</div>
                 )}
               </CardContent>
             </Card>
