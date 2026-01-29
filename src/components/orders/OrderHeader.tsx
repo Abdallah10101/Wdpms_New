@@ -184,7 +184,13 @@ export function OrderHeader({
           {canEdit ? (
             <Select
               value={order.current_stage}
-              onValueChange={(value) => onStageChange(value as ProductionStage)}
+              onValueChange={(value) => {
+                // Validate it's a valid stage value before calling
+                const validStage = PRODUCTION_STAGES.find(s => s.value === value);
+                if (validStage) {
+                  onStageChange(validStage.value);
+                }
+              }}
               disabled={isUpdating}
             >
               <SelectTrigger className="w-auto h-8 gap-2">
@@ -219,7 +225,13 @@ export function OrderHeader({
           {canEdit ? (
             <Select
               value={order.priority}
-              onValueChange={(value) => onPriorityChange(value as OrderPriority)}
+              onValueChange={(value) => {
+                // Validate it's a valid priority value before calling
+                const validPriority = PRIORITY_CONFIG.find(p => p.value === value);
+                if (validPriority) {
+                  onPriorityChange(validPriority.value);
+                }
+              }}
               disabled={isUpdating}
             >
               <SelectTrigger className="w-auto h-8 gap-2">
