@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, LayoutGrid, List, Plus, Trash2, Package, Beaker } from 'lucide-react';
-import { PRODUCTION_STAGES, BULK_PRODUCTION_STAGES, SAMPLE_PRODUCTION_STAGES, type ProductionStage, type Order, getOrderType } from '@/lib/types';
+import { PRODUCTION_STAGES, BULK_DASHBOARD_STAGES, SAMPLE_DASHBOARD_STAGES, type ProductionStage, type Order, type DisplayStage, getOrderType } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
@@ -102,9 +102,13 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
   const bulkOrders = filteredOrders.filter(order => getOrderType(order) === 'bulk');
   const sampleOrders = filteredOrders.filter(order => getOrderType(order) === 'sample');
 
-  const getOrdersByStageAndType = (stage: ProductionStage, type: 'bulk' | 'sample') => {
+  const getOrdersByDisplayStageAndType = (stage: DisplayStage, type: 'bulk' | 'sample') => {
     const typeOrders = type === 'bulk' ? bulkOrders : sampleOrders;
-    return typeOrders.filter(order => order.current_stage === stage);
+    if (stage.combinedStages) {
+      // Combined stage - return orders matching any of the combined stages
+      return typeOrders.filter(order => stage.combinedStages!.includes(order.current_stage));
+    }
+    return typeOrders.filter(order => order.current_stage === stage.value);
   };
 
   const handleDragEnd = async (result: DropResult) => {
@@ -118,7 +122,7 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
       return;
     }
 
-    // Parse droppableId format: "bulk-cutting" or "sample-sewing"
+    // Parse droppableId format: "bulk-cutting" or "sample-sewing" or "bulk-qc_packaging"
     const [destType, destStageValue] = destination.droppableId.split('-');
     const [sourceType] = source.droppableId.split('-');
     const orderId = draggableId;
@@ -130,23 +134,38 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
     // If moving between kanban types (bulk <-> sample), update the order type too
     const isTypeChange = destType !== sourceType;
 
-    // Validate the stage is a valid production stage value
-    const validStage =
-      PRODUCTION_STAGES.find(s => s.value === destStageValue) ||
-      PRODUCTION_STAGES.find(s => s.label === destStageValue) ||
-      PRODUCTION_STAGES.find(s => s.label.toLowerCase() === String(destStageValue).toLowerCase());
+    // Handle combined stage (qc_packaging) - default to 'qc' when dropping into combined column
+    let newStage: ProductionStage;
+    let stageLabel: string;
     
-    if (!validStage) {
-      console.error('Invalid stage value:', destStageValue);
-      toast({
-        title: 'Error',
-        description: 'Invalid stage value.',
-        variant: 'destructive',
-      });
-      return;
+    if (destStageValue === 'qc_packaging') {
+      // If order is already qc or packaging, keep it where it is
+      if (order.current_stage === 'qc' || order.current_stage === 'packaging') {
+        newStage = order.current_stage;
+      } else {
+        // New orders go to qc first
+        newStage = 'qc';
+      }
+      stageLabel = 'QC & Packaging';
+    } else {
+      // Validate the stage is a valid production stage value
+      const validStage =
+        PRODUCTION_STAGES.find(s => s.value === destStageValue) ||
+        PRODUCTION_STAGES.find(s => s.label === destStageValue) ||
+        PRODUCTION_STAGES.find(s => s.label.toLowerCase() === String(destStageValue).toLowerCase());
+      
+      if (!validStage) {
+        console.error('Invalid stage value:', destStageValue);
+        toast({
+          title: 'Error',
+          description: 'Invalid stage value.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      newStage = validStage.value;
+      stageLabel = validStage.label;
     }
-
-    const newStage = validStage.value;
     const newSupplier = destType === 'sample' ? 'sample' : (order.supplier === 'sample' ? null : order.supplier);
 
     // Optimistic update
@@ -176,7 +195,7 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
       const typeChangeMsg = isTypeChange ? ` and converted to ${destType}` : '';
       toast({
         title: 'Order Updated',
-        description: `Order moved to ${validStage.label}${typeChangeMsg}`,
+        description: `Order moved to ${stageLabel}${typeChangeMsg}`,
       });
     } catch (error) {
       console.error('Error updating order:', error);
@@ -230,7 +249,7 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
     setDeleteDialogOpen(true);
   };
 
-  const renderKanbanBoard = (type: 'bulk' | 'sample', stages: typeof PRODUCTION_STAGES, title: string, icon: React.ReactNode) => {
+  const renderKanbanBoard = (type: 'bulk' | 'sample', stages: DisplayStage[], title: string, icon: React.ReactNode) => {
     const typeOrders = type === 'bulk' ? bulkOrders : sampleOrders;
     
     return (
@@ -250,7 +269,7 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
             <div className="w-full overflow-x-auto">
               <div className="flex gap-3 p-4 min-w-max">
                 {stages.map(stage => {
-                  const stageOrders = getOrdersByStageAndType(stage.value, type);
+                  const stageOrders = getOrdersByDisplayStageAndType(stage, type);
                   const droppableId = `${type}-${stage.value}`;
                   
                   return (
@@ -457,7 +476,7 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
           {/* Bulk Orders Kanban */}
           {renderKanbanBoard(
             'bulk',
-            BULK_PRODUCTION_STAGES,
+            BULK_DASHBOARD_STAGES,
             'Bulk',
             <Package className="h-5 w-5 text-muted-foreground" />
           )}
@@ -465,7 +484,7 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
           {/* Sample Orders Kanban */}
           {renderKanbanBoard(
             'sample',
-            SAMPLE_PRODUCTION_STAGES,
+            SAMPLE_DASHBOARD_STAGES,
             'Samples',
             <Beaker className="h-5 w-5 text-muted-foreground" />
           )}

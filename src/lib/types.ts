@@ -208,6 +208,38 @@ export const SAMPLE_PRODUCTION_STAGES = PRODUCTION_STAGES.filter(
   s => s.value !== 'not_started'
 );
 
+// Dashboard display stages - combines QC & Packaging into one column
+export interface DisplayStage {
+  value: ProductionStage | 'qc_packaging';
+  label: string;
+  color: string;
+  combinedStages?: ProductionStage[];
+}
+
+const createDashboardStages = (stages: typeof PRODUCTION_STAGES): DisplayStage[] => {
+  const result: DisplayStage[] = [];
+  for (const stage of stages) {
+    if (stage.value === 'qc') {
+      // Combine QC and Packaging
+      result.push({
+        value: 'qc_packaging',
+        label: 'QC & Packaging',
+        color: 'bg-yellow-500',
+        combinedStages: ['qc', 'packaging'],
+      });
+    } else if (stage.value === 'packaging') {
+      // Skip packaging as it's combined with QC
+      continue;
+    } else {
+      result.push(stage);
+    }
+  }
+  return result;
+};
+
+export const BULK_DASHBOARD_STAGES = createDashboardStages(BULK_PRODUCTION_STAGES);
+export const SAMPLE_DASHBOARD_STAGES = createDashboardStages(SAMPLE_PRODUCTION_STAGES);
+
 // Helper to get appropriate stages based on order type
 export function getOrderStages(orderType: 'sample' | 'bulk' | null | undefined) {
   return orderType === 'sample' ? SAMPLE_PRODUCTION_STAGES : BULK_PRODUCTION_STAGES;
