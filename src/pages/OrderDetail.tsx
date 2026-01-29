@@ -240,6 +240,7 @@ export default function OrderDetail() {
           onBack={() => navigate(-1)}
           onStageChange={handleStageChange}
           onPriorityChange={handlePriorityChange}
+          onNameChange={(newName) => setOrder(prev => prev ? { ...prev, product_name: newName } : null)}
         />
 
         {/* Progress Bar */}
