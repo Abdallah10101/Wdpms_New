@@ -11,6 +11,7 @@ import {
   Package,
   Users,
   ClipboardList,
+  Beaker,
   Truck,
   AlertTriangle,
   Plus,
@@ -28,6 +29,7 @@ interface DashboardStats {
   totalClients: number;
   pendingTasks: number;
   overdueOrders: number;
+  sampleCount: number;
 }
 
 export default function Dashboard() {
@@ -67,7 +69,7 @@ export default function Dashboard() {
       // Get all orders for stats
       const { data: allOrders } = await supabase
         .from('orders')
-        .select('current_stage, delivery_date');
+        .select('current_stage, delivery_date, supplier');
 
       // Fetch clients count (admin only)
       let clientsCount = 0;
@@ -96,6 +98,7 @@ export default function Dashboard() {
         totalClients: clientsCount,
         pendingTasks: pendingTasksCount || 0,
         overdueOrders: allOrders?.filter(o => o.delivery_date && o.delivery_date < today && o.current_stage !== 'delivered').length || 0,
+        sampleCount: allOrders?.filter(o => o.supplier === 'sample' && o.current_stage !== 'delivered').length || 0,
       };
 
       setStats(calculatedStats);
@@ -137,7 +140,7 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Total Orders</CardTitle>
@@ -148,6 +151,20 @@ export default function Dashboard() {
                 <Skeleton className="h-8 w-20" />
               ) : (
                 <div className="text-2xl font-bold">{stats?.totalOrders || 0}</div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium">Samples</CardTitle>
+              <Beaker className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <Skeleton className="h-8 w-20" />
+              ) : (
+                <div className="text-2xl font-bold text-purple-600">{stats?.sampleCount || 0}</div>
               )}
             </CardContent>
           </Card>
