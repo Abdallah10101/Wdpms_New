@@ -5,7 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+// NOTE: Avoid nested scroll containers with @hello-pangea/dnd
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
@@ -117,8 +117,13 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
     const newStageValue = destination.droppableId;
     const orderId = draggableId;
 
-    // Validate the stage is a valid production stage value
-    const validStage = PRODUCTION_STAGES.find(s => s.value === newStageValue);
+    // Validate the stage is a valid production stage value.
+    // Some drag/drop edge-cases can surface the *label* (e.g. "Not Started");
+    // map it back to the enum value to keep the action reliable.
+    const validStage =
+      PRODUCTION_STAGES.find(s => s.value === newStageValue) ||
+      PRODUCTION_STAGES.find(s => s.label === newStageValue) ||
+      PRODUCTION_STAGES.find(s => s.label.toLowerCase() === String(newStageValue).toLowerCase());
     if (!validStage) {
       console.error('Invalid stage value:', newStageValue);
       toast({
@@ -273,7 +278,7 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
 
         <CardContent className="p-0">
           {viewMode === 'board' ? (
-            <ScrollArea className="w-full">
+            <div className="w-full overflow-x-auto">
               <DragDropContext onDragEnd={handleDragEnd}>
                 <div className="flex gap-3 p-4 min-w-max">
                   {PRODUCTION_STAGES.map(stage => {
@@ -359,8 +364,7 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
                   })}
                 </div>
               </DragDropContext>
-              <ScrollBar orientation="horizontal" />
-            </ScrollArea>
+            </div>
           ) : (
             <div className="divide-y divide-border">
               {filteredOrders.length === 0 ? (
