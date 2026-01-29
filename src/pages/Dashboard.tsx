@@ -86,7 +86,7 @@ export default function Dashboard() {
         totalClients: clientsCount,
         overdueOrders: allOrders?.filter(o => o.delivery_date && o.delivery_date < today && o.current_stage !== 'delivered').length || 0,
         sampleCount: allOrders?.filter(o => o.supplier === 'sample' && o.current_stage !== 'delivered').length || 0,
-        bulkCount: allOrders?.filter(o => o.supplier === 'bulk' && o.current_stage !== 'delivered').length || 0,
+        bulkCount: allOrders?.filter(o => o.supplier !== 'sample' && o.current_stage !== 'delivered').length || 0,
       };
 
       setStats(calculatedStats);
