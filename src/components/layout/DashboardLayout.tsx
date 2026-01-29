@@ -16,7 +16,6 @@ import {
   LayoutDashboard,
   Package,
   Users,
-  ClipboardList,
   Settings,
   LogOut,
   Menu,
@@ -90,12 +89,6 @@ const navItems: NavItem[] = [
     label: 'Suppliers',
     href: '/suppliers',
     icon: <Truck className="h-5 w-5" />,
-    roles: ['admin', 'team'],
-  },
-  {
-    label: 'Tasks',
-    href: '/tasks',
-    icon: <ClipboardList className="h-5 w-5" />,
     roles: ['admin', 'team'],
   },
   {
