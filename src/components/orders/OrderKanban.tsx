@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
+// NOTE: Avoid nested scroll containers with @hello-pangea/dnd
 import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/integrations/supabase/client';
@@ -50,8 +50,13 @@ export function OrderKanban({ orders, onOrderUpdated }: OrderKanbanProps) {
     const newStageValue = destination.droppableId;
     const orderId = draggableId;
 
-    // Validate the stage is a valid production stage value
-    const validStage = PRODUCTION_STAGES.find(s => s.value === newStageValue);
+    // Validate the stage is a valid production stage value.
+    // Some drag/drop edge-cases can surface the *label* (e.g. "Not Started");
+    // map it back to the enum value to keep the action reliable.
+    const validStage =
+      PRODUCTION_STAGES.find(s => s.value === newStageValue) ||
+      PRODUCTION_STAGES.find(s => s.label === newStageValue) ||
+      PRODUCTION_STAGES.find(s => s.label.toLowerCase() === String(newStageValue).toLowerCase());
     if (!validStage) {
       console.error('Invalid stage value:', newStageValue);
       toast({
@@ -128,7 +133,7 @@ export function OrderKanban({ orders, onOrderUpdated }: OrderKanbanProps) {
 
   return (
     <>
-      <ScrollArea className="w-full">
+      <div className="w-full overflow-x-auto">
         <DragDropContext onDragEnd={handleDragEnd}>
           <div className="flex gap-4 pb-4 min-w-max">
             {PRODUCTION_STAGES.map((stage) => {
@@ -218,8 +223,7 @@ export function OrderKanban({ orders, onOrderUpdated }: OrderKanbanProps) {
             })}
           </div>
         </DragDropContext>
-        <ScrollBar orientation="horizontal" />
-      </ScrollArea>
+      </div>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
