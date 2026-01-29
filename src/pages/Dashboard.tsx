@@ -85,10 +85,9 @@ export default function Dashboard() {
         shipped: allOrders?.filter(o => ['shipping', 'delivered'].includes(o.current_stage)).length || 0,
         totalClients: clientsCount,
         overdueOrders: allOrders?.filter(o => o.delivery_date && o.delivery_date < today && o.current_stage !== 'delivered').length || 0,
-        sampleCount: allOrders?.filter(o => o.supplier === 'sample' && o.current_stage !== 'delivered').length || 0,
+        sampleCount: allOrders?.filter(o => o.supplier === 'sample').length || 0,
         bulkCount: allOrders?.filter(o => 
           o.supplier !== 'sample' && 
-          o.current_stage !== 'delivered' && 
           o.current_stage !== 'not_started' && 
           o.current_stage !== 'sample'
         ).length || 0,
