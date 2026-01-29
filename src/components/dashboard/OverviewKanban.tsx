@@ -114,8 +114,22 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
       return;
     }
 
-    const newStage = destination.droppableId as ProductionStage;
+    const newStageValue = destination.droppableId;
     const orderId = draggableId;
+
+    // Validate the stage is a valid production stage value
+    const validStage = PRODUCTION_STAGES.find(s => s.value === newStageValue);
+    if (!validStage) {
+      console.error('Invalid stage value:', newStageValue);
+      toast({
+        title: 'Error',
+        description: 'Invalid stage value.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const newStage = validStage.value;
 
     // Optimistic update
     setOrders(prevOrders =>
@@ -134,7 +148,7 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
 
       toast({
         title: 'Stage Updated',
-        description: `Order moved to ${PRODUCTION_STAGES.find(s => s.value === newStage)?.label}`,
+        description: `Order moved to ${validStage.label}`,
       });
     } catch (error) {
       console.error('Error updating order stage:', error);

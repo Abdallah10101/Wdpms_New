@@ -47,8 +47,22 @@ export function OrderKanban({ orders, onOrderUpdated }: OrderKanbanProps) {
       return;
     }
 
-    const newStage = destination.droppableId as ProductionStage;
+    const newStageValue = destination.droppableId;
     const orderId = draggableId;
+
+    // Validate the stage is a valid production stage value
+    const validStage = PRODUCTION_STAGES.find(s => s.value === newStageValue);
+    if (!validStage) {
+      console.error('Invalid stage value:', newStageValue);
+      toast({
+        title: 'Error',
+        description: 'Invalid stage value.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const newStage = validStage.value;
 
     try {
       const { error } = await supabase
@@ -60,7 +74,7 @@ export function OrderKanban({ orders, onOrderUpdated }: OrderKanbanProps) {
 
       toast({
         title: 'Stage Updated',
-        description: `Order moved to ${PRODUCTION_STAGES.find(s => s.value === newStage)?.label}`,
+        description: `Order moved to ${validStage.label}`,
       });
 
       onOrderUpdated?.();
