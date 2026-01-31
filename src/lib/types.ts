@@ -158,12 +158,22 @@ export interface Lead {
   status: LeadStatus;
   source?: string;
   notes?: string;
-  estimated_value?: string;
+  followers_range?: string;
   next_follow_up?: string;
   created_by?: string;
   created_at: string;
   updated_at: string;
 }
+
+export const FOLLOWERS_RANGE_OPTIONS = [
+  { value: '0-1k', label: '0 - 1K' },
+  { value: '1k-10k', label: '1K - 10K' },
+  { value: '10k-50k', label: '10K - 50K' },
+  { value: '50k-100k', label: '50K - 100K' },
+  { value: '100k-500k', label: '100K - 500K' },
+  { value: '500k-1m', label: '500K - 1M' },
+  { value: '1m+', label: '1M+' },
+];
 
 export interface Supplier {
   id: string;
