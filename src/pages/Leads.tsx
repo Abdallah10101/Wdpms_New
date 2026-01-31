@@ -35,8 +35,9 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search, UserPlus, Mail, Phone, Loader2, Calendar, DollarSign } from 'lucide-react';
+import { Plus, Search, UserPlus, Mail, Phone, Loader2, Calendar, Instagram } from 'lucide-react';
 import type { Lead, LeadStatus, LEAD_STATUS_CONFIG } from '@/lib/types';
+import { FOLLOWERS_RANGE_OPTIONS } from '@/lib/types';
 
 const LEAD_STATUSES: typeof LEAD_STATUS_CONFIG = [
   { value: 'new', label: 'New', color: 'bg-blue-500' },
@@ -69,7 +70,7 @@ export default function Leads() {
     status: 'new' as LeadStatus,
     source: '',
     notes: '',
-    estimated_value: '',
+    followers_range: '',
     next_follow_up: '',
   });
 
@@ -123,7 +124,7 @@ export default function Leads() {
         status: formData.status,
         source: formData.source || null,
         notes: formData.notes || null,
-        estimated_value: formData.estimated_value ? parseFloat(formData.estimated_value) : null,
+        followers_range: formData.followers_range || null,
         next_follow_up: formData.next_follow_up || null,
         created_by: user?.id,
       } as any);
@@ -187,7 +188,7 @@ export default function Leads() {
       status: 'new',
       source: '',
       notes: '',
-      estimated_value: '',
+      followers_range: '',
       next_follow_up: '',
     });
   };
@@ -321,14 +322,22 @@ export default function Leads() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="estimated_value">Estimated Value ($)</Label>
-                      <Input
-                        id="estimated_value"
-                        type="number"
-                        step="0.01"
-                        value={formData.estimated_value}
-                        onChange={(e) => setFormData({ ...formData, estimated_value: e.target.value })}
-                      />
+                      <Label htmlFor="followers_range">Instagram Followers</Label>
+                      <Select
+                        value={formData.followers_range}
+                        onValueChange={(value) => setFormData({ ...formData, followers_range: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select range" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {FOLLOWERS_RANGE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="next_follow_up">Next Follow-up</Label>
@@ -431,7 +440,7 @@ export default function Leads() {
                     <TableHead>Company</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Value</TableHead>
+                    <TableHead>Followers</TableHead>
                     <TableHead>Follow-up</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -481,10 +490,10 @@ export default function Leads() {
                         </Select>
                       </TableCell>
                       <TableCell>
-                        {lead.estimated_value ? (
+                        {lead.followers_range ? (
                           <span className="flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            {parseFloat(lead.estimated_value).toLocaleString()}
+                            <Instagram className="h-3 w-3" />
+                            {FOLLOWERS_RANGE_OPTIONS.find(o => o.value === lead.followers_range)?.label || lead.followers_range}
                           </span>
                         ) : (
                           '-'
