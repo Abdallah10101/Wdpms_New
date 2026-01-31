@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search, UserPlus, Mail, Phone, Loader2, Calendar, Instagram } from 'lucide-react';
+import { Plus, Search, UserPlus, Mail, Phone, Loader2, Calendar, Instagram, Building2, User, MessageSquare, Globe } from 'lucide-react';
 import type { Lead, LeadStatus, LEAD_STATUS_CONFIG } from '@/lib/types';
 import { FOLLOWERS_RANGE_OPTIONS } from '@/lib/types';
 
@@ -60,6 +60,8 @@ export default function Leads() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     company_name: '',
@@ -446,7 +448,14 @@ export default function Leads() {
                 </TableHeader>
                 <TableBody>
                   {filteredLeads.map((lead) => (
-                    <TableRow key={lead.id}>
+                    <TableRow 
+                      key={lead.id} 
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => {
+                        setSelectedLead(lead);
+                        setIsDetailOpen(true);
+                      }}
+                    >
                       <TableCell>
                         <div>
                           <p className="font-medium">{lead.company_name}</p>
@@ -472,7 +481,7 @@ export default function Leads() {
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
                         <Select
                           value={lead.status}
                           onValueChange={(value: LeadStatus) => handleUpdateStatus(lead.id, value)}
@@ -516,6 +525,102 @@ export default function Leads() {
             )}
           </CardContent>
         </Card>
+
+        {/* Lead Detail Dialog */}
+        <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Building2 className="h-5 w-5" />
+                {selectedLead?.company_name}
+              </DialogTitle>
+              {selectedLead?.brand_name && (
+                <DialogDescription>{selectedLead.brand_name}</DialogDescription>
+              )}
+            </DialogHeader>
+            {selectedLead && (
+              <div className="space-y-4">
+                {/* Status */}
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Status</span>
+                  {getStatusBadge(selectedLead.status)}
+                </div>
+
+                {/* Contact Info */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">Contact Information</h4>
+                  <div className="grid gap-2 text-sm">
+                    {selectedLead.contact_name && (
+                      <div className="flex items-center gap-2">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span>{selectedLead.contact_name}</span>
+                      </div>
+                    )}
+                    {selectedLead.email && (
+                      <div className="flex items-center gap-2">
+                        <Mail className="h-4 w-4 text-muted-foreground" />
+                        <a href={`mailto:${selectedLead.email}`} className="text-primary hover:underline">
+                          {selectedLead.email}
+                        </a>
+                      </div>
+                    )}
+                    {selectedLead.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <a href={`tel:${selectedLead.phone}`} className="text-primary hover:underline">
+                          {selectedLead.phone}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Additional Details */}
+                <div className="space-y-3">
+                  <h4 className="text-sm font-medium">Details</h4>
+                  <div className="grid gap-2 text-sm">
+                    {selectedLead.source && (
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-muted-foreground" />
+                        <span>Source: {selectedLead.source}</span>
+                      </div>
+                    )}
+                    {selectedLead.followers_range && (
+                      <div className="flex items-center gap-2">
+                        <Instagram className="h-4 w-4 text-muted-foreground" />
+                        <span>Followers: {FOLLOWERS_RANGE_OPTIONS.find(o => o.value === selectedLead.followers_range)?.label || selectedLead.followers_range}</span>
+                      </div>
+                    )}
+                    {selectedLead.next_follow_up && (
+                      <div className="flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <span>Follow-up: {new Date(selectedLead.next_follow_up).toLocaleDateString()}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {selectedLead.notes && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium flex items-center gap-2">
+                      <MessageSquare className="h-4 w-4" />
+                      Notes
+                    </h4>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap bg-muted/50 p-3 rounded-md">
+                      {selectedLead.notes}
+                    </p>
+                  </div>
+                )}
+
+                {/* Created Date */}
+                <div className="pt-2 border-t text-xs text-muted-foreground">
+                  Created: {new Date(selectedLead.created_at).toLocaleString()}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
