@@ -208,14 +208,14 @@ export const PRODUCTION_STAGES: { value: ProductionStage; label: string; color: 
   { value: 'delivered', label: 'Delivered', color: 'bg-emerald-500' },
 ];
 
-// Bulk order stages (excludes sample - starts with cutting)
+// Bulk order stages (includes not_started, excludes sample)
 export const BULK_PRODUCTION_STAGES = PRODUCTION_STAGES.filter(
-  s => s.value !== 'not_started' && s.value !== 'sample'
+  s => s.value !== 'sample'
 );
 
-// Sample order stages (includes sample stage)
+// Sample order stages (includes not_started and sample stage)
 export const SAMPLE_PRODUCTION_STAGES = PRODUCTION_STAGES.filter(
-  s => s.value !== 'not_started'
+  s => true // includes all stages
 );
 
 // Dashboard display stages - combines QC & Packaging into one column
