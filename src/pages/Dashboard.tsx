@@ -2,9 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -15,9 +14,7 @@ import {
   Truck,
   AlertTriangle,
   Plus,
-  ArrowRight,
 } from 'lucide-react';
-import { PRODUCTION_STAGES, type ProductionStage, type Order } from '@/lib/types';
 import { DualOverviewKanban } from '@/components/dashboard/DualOverviewKanban';
 
 interface DashboardStats {
@@ -33,7 +30,6 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const { user, role, isLoading: authLoading } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentOrders, setRecentOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -54,15 +50,6 @@ export default function Dashboard() {
 
   const fetchDashboardData = async () => {
     try {
-      // Fetch orders
-      const { data: ordersData, error: ordersError } = await supabase
-        .from('orders')
-        .select('*, client:clients(name, brand_name)')
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      if (ordersError) throw ordersError;
-
       // Get all orders for stats
       const { data: allOrders } = await supabase
         .from('orders')
@@ -94,16 +81,11 @@ export default function Dashboard() {
       };
 
       setStats(calculatedStats);
-      setRecentOrders((ordersData || []) as Order[]);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const getStageConfig = (stage: ProductionStage) => {
-    return PRODUCTION_STAGES.find(s => s.value === stage) || PRODUCTION_STAGES[0];
   };
 
   if (authLoading || !user) {
@@ -227,71 +209,6 @@ export default function Dashboard() {
 
         {/* Dual Overview Kanbans (Bulk & Samples) */}
         <DualOverviewKanban />
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Recent Orders</CardTitle>
-              <CardDescription>Latest orders in the system</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" asChild>
-              <Link to="/orders">
-                View all
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <Skeleton key={i} className="h-16 w-full" />
-                ))}
-              </div>
-            ) : recentOrders.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-center">
-                <Package className="h-12 w-12 text-muted-foreground/50" />
-                <p className="mt-4 text-sm text-muted-foreground">No orders yet</p>
-                {role === 'admin' && (
-                  <Button className="mt-4" asChild>
-                    <Link to="/orders/new">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Create First Order
-                    </Link>
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentOrders.map((order) => {
-                  const stageConfig = getStageConfig(order.current_stage);
-                  return (
-                    <Link
-                      key={order.id}
-                      to={`/orders/${order.id}`}
-                      className="flex items-center justify-between rounded-lg border border-border p-4 transition-colors hover:bg-accent"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium truncate">{order.product_name}</p>
-                          <span className="text-xs text-muted-foreground">
-                            {order.order_number}
-                          </span>
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {(order.client as any)?.brand_name || (order.client as any)?.name || 'No client'}
-                        </p>
-                      </div>
-                      <Badge variant="secondary" className={stageConfig.color + ' text-white'}>
-                        {stageConfig.label}
-                      </Badge>
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </DashboardLayout>
   );
