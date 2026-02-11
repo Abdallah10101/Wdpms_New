@@ -55,6 +55,30 @@ const navItems: NavItem[] = [
     roles: ['client'],
   },
   {
+    label: 'Active Orders',
+    href: '/portal?tab=active',
+    icon: <Package className="h-4 w-4" />,
+    roles: ['client'],
+  },
+  {
+    label: 'Completed',
+    href: '/portal?tab=completed',
+    icon: <ChevronRight className="h-4 w-4" />,
+    roles: ['client'],
+  },
+  {
+    label: 'Invoices',
+    href: '/portal?tab=invoices',
+    icon: <FileText className="h-4 w-4" />,
+    roles: ['client'],
+  },
+  {
+    label: 'Updates',
+    href: '/portal?tab=updates',
+    icon: <ChevronRight className="h-4 w-4" />,
+    roles: ['client'],
+  },
+  {
     label: 'Orders',
     href: '/orders',
     icon: <Package className="h-5 w-5" />,
@@ -166,7 +190,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         {/* Navigation */}
         <nav className="flex-1 space-y-1 p-4">
           {filteredNavItems.map((item) => {
-            const isActive = location.pathname === item.href;
+            const isSubTab = item.href.includes('?tab=');
+            const isActive = isSubTab
+              ? location.pathname + location.search === item.href
+              : location.pathname === item.href;
             return (
               <Link
                 key={item.href}
@@ -174,6 +201,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 onClick={() => setSidebarOpen(false)}
                 className={cn(
                   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
+                  isSubTab && 'pl-10 text-xs py-2',
                   isActive
                     ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                     : 'text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground'
@@ -181,7 +209,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               >
                 {item.icon}
                 {item.label}
-                {isActive && <ChevronRight className="ml-auto h-4 w-4" />}
+                {isActive && !isSubTab && <ChevronRight className="ml-auto h-4 w-4" />}
               </Link>
             );
           })}
