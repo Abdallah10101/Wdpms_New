@@ -40,7 +40,7 @@ import { OrderDetails } from '@/components/orders/OrderDetails';
 import { OrderNotes } from '@/components/orders/OrderNotes';
 import { OrderTasks } from '@/components/orders/OrderTasks';
 import { OrderInvoices } from '@/components/orders/OrderInvoices';
-import { OrderFiles } from '@/components/orders/OrderFiles';
+import { OrderStageImages } from '@/components/orders/OrderStageImages';
 
 export default function OrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -295,14 +295,12 @@ export default function OrderDetail() {
               </CardContent>
             </Card>
 
-            {/* Files - Admin/Team only */}
-            {(role === 'admin' || role === 'team') && (
-              <Card>
-                <CardContent className="pt-6">
-                  <OrderFiles orderId={order.id} />
-                </CardContent>
-              </Card>
-            )}
+            {/* Stage Images (client-visible) */}
+            <Card>
+              <CardContent className="pt-6">
+                <OrderStageImages orderId={order.id} canUpload={canEdit} />
+              </CardContent>
+            </Card>
 
             {/* Invoices - Admin/Team only */}
             {(role === 'admin' || role === 'team') && (

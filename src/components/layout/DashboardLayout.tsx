@@ -25,7 +25,6 @@ import {
   UserPlus,
   Truck,
   Calculator,
-  FolderArchive,
   FileText,
 } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
@@ -65,18 +64,6 @@ const navItems: NavItem[] = [
     label: 'Clients',
     href: '/clients',
     icon: <Building2 className="h-5 w-5" />,
-    roles: ['admin', 'team'],
-  },
-  {
-    label: 'My Files',
-    href: '/files',
-    icon: <FolderArchive className="h-5 w-5" />,
-    roles: ['client'],
-  },
-  {
-    label: 'Client Files',
-    href: '/files',
-    icon: <FolderArchive className="h-5 w-5" />,
     roles: ['admin', 'team'],
   },
   {

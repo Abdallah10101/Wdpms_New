@@ -17,17 +17,23 @@ import {
   Clock,
   FileText,
   MessageSquare,
-  Download,
   Eye,
+  Image as ImageIcon,
   ArrowRight,
   Truck,
   Printer,
   Sparkles,
   Waves,
-  DollarSign,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
-import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, type Order, type OrderNote, type OrderFile } from '@/lib/types';
+import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, type Order, type OrderNote } from '@/lib/types';
+import {
+  CLIENT_STAGE_IMAGE_STAGES,
+  STAGE_IMAGE_LABELS,
+  STAGE_IMAGE_CATEGORIES,
+  categoryToStage,
+  type ClientStageImageStage,
+} from '@/lib/stage-images';
 
 interface ClientData {
   id: string;
@@ -60,8 +66,10 @@ export default function ClientPortal() {
   const [client, setClient] = useState<ClientData | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recentNotes, setRecentNotes] = useState<(OrderNote & { order?: Order })[]>([]);
-  const [archivedFiles, setArchivedFiles] = useState<any[]>([]);
   const [clientInvoices, setClientInvoices] = useState<Invoice[]>([]);
+  const [stageImagesByOrder, setStageImagesByOrder] = useState<
+    Record<string, Partial<Record<ClientStageImageStage, { signedUrl: string; createdAt: string }>>>
+  >({});
   const [isLoading, setIsLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoiceViewerOpen, setInvoiceViewerOpen] = useState(false);
@@ -147,18 +155,65 @@ export default function ClientPortal() {
           }
           setClientInvoices(invoicesData as Invoice[]);
         }
-      }
 
-      // Fetch archived files
-      const { data: filesData, error: filesError } = await supabase
-        .from('client_archive_files')
-        .select('*')
-        .eq('client_id', clientData.id)
-        .order('archived_at', { ascending: false })
-        .limit(20);
+        const { data: stageImageFiles, error: stageImagesError } = await supabase
+          .from('order_files')
+          .select('order_id, category, file_path, created_at')
+          .in('order_id', orderIds)
+          .eq('is_client_visible', true)
+          .in('category', STAGE_IMAGE_CATEGORIES)
+          .order('created_at', { ascending: false });
 
-      if (!filesError) {
-        setArchivedFiles(filesData || []);
+        if (!stageImagesError && stageImageFiles) {
+          const latestByOrderAndStage: Record<
+            string,
+            Partial<Record<ClientStageImageStage, { filePath: string; createdAt: string }>>
+          > = {};
+
+          for (const file of stageImageFiles) {
+            const stage = categoryToStage(file.category);
+            if (!stage) continue;
+
+            if (!latestByOrderAndStage[file.order_id]) {
+              latestByOrderAndStage[file.order_id] = {};
+            }
+
+            if (!latestByOrderAndStage[file.order_id][stage]) {
+              latestByOrderAndStage[file.order_id][stage] = {
+                filePath: file.file_path,
+                createdAt: file.created_at,
+              };
+            }
+          }
+
+          const signedByOrder: Record<
+            string,
+            Partial<Record<ClientStageImageStage, { signedUrl: string; createdAt: string }>>
+          > = {};
+
+          await Promise.all(
+            Object.entries(latestByOrderAndStage).map(async ([orderId, stages]) => {
+              signedByOrder[orderId] = {};
+              await Promise.all(
+                CLIENT_STAGE_IMAGE_STAGES.map(async (stage) => {
+                  const file = stages[stage];
+                  if (!file) return;
+                  const { data: signedData } = await supabase.storage
+                    .from('order-files')
+                    .createSignedUrl(file.filePath, 60 * 60);
+                  if (signedData?.signedUrl) {
+                    signedByOrder[orderId][stage] = {
+                      signedUrl: signedData.signedUrl,
+                      createdAt: file.createdAt,
+                    };
+                  }
+                }),
+              );
+            }),
+          );
+
+          setStageImagesByOrder(signedByOrder);
+        }
       }
 
     } catch (error) {
@@ -170,25 +225,6 @@ export default function ClientPortal() {
 
   const getStageConfig = (stage: string) => {
     return PRODUCTION_STAGES.find(s => s.value === stage) || PRODUCTION_STAGES[0];
-  };
-
-  const handleDownload = async (filePath: string, fileName: string) => {
-    try {
-      const { data, error } = await supabase.storage
-        .from('order-files')
-        .download(filePath);
-
-      if (error) throw error;
-
-      const url = URL.createObjectURL(data);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = fileName;
-      a.click();
-      URL.revokeObjectURL(url);
-    } catch (error) {
-      console.error('Error downloading file:', error);
-    }
   };
 
   const activeOrders = orders.filter(o => o.current_stage !== 'delivered');
@@ -242,7 +278,7 @@ export default function ClientPortal() {
         </div>
 
         {/* Stats Overview */}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
@@ -269,18 +305,6 @@ export default function ClientPortal() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Documents</CardTitle>
-              <FileText className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{archivedFiles.length}</div>
-              <p className="text-xs text-muted-foreground">
-                Archived files
-              </p>
-            </CardContent>
-          </Card>
         </div>
 
         {/* Main Content Tabs */}
@@ -431,6 +455,37 @@ export default function ClientPortal() {
                             ))}
                           </div>
                         </div>
+
+                        {stageImagesByOrder[order.id] && (
+                          <div className="mt-5 space-y-2">
+                            <p className="text-sm font-medium">Stage Images</p>
+                            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                              {CLIENT_STAGE_IMAGE_STAGES.map((stage) => {
+                                const image = stageImagesByOrder[order.id]?.[stage];
+                                return (
+                                  <div key={stage} className="rounded-md border p-2">
+                                    <p className="text-[11px] text-muted-foreground mb-1">
+                                      {STAGE_IMAGE_LABELS[stage]}
+                                    </p>
+                                    {image?.signedUrl ? (
+                                      <a href={image.signedUrl} target="_blank" rel="noreferrer">
+                                        <img
+                                          src={image.signedUrl}
+                                          alt={`${STAGE_IMAGE_LABELS[stage]} update`}
+                                          className="h-20 w-full rounded object-contain border bg-muted/30"
+                                        />
+                                      </a>
+                                    ) : (
+                                      <div className="h-20 w-full rounded border border-dashed flex items-center justify-center text-muted-foreground">
+                                        <ImageIcon className="h-4 w-4" />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   );
