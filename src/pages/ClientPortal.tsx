@@ -308,25 +308,27 @@ export default function ClientPortal() {
         </div>
 
         {/* Main Content Tabs */}
-        <Tabs defaultValue="active" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="active" className="flex items-center gap-2">
+        <Tabs defaultValue="active" className="flex gap-6" orientation="vertical">
+          <TabsList className="flex flex-col h-auto items-stretch bg-transparent gap-1 min-w-[200px] shrink-0">
+            <TabsTrigger value="active" className="flex items-center gap-2 justify-start px-4 py-3 data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-lg">
               <Package className="h-4 w-4" />
               Active Orders ({activeOrders.length})
             </TabsTrigger>
-            <TabsTrigger value="completed" className="flex items-center gap-2">
+            <TabsTrigger value="completed" className="flex items-center gap-2 justify-start px-4 py-3 data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-lg">
               <CheckCircle2 className="h-4 w-4" />
               Completed ({completedOrders.length})
             </TabsTrigger>
-            <TabsTrigger value="invoices" className="flex items-center gap-2">
+            <TabsTrigger value="invoices" className="flex items-center gap-2 justify-start px-4 py-3 data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-lg">
               <FileText className="h-4 w-4" />
               Invoices ({clientInvoices.length})
             </TabsTrigger>
-            <TabsTrigger value="updates" className="flex items-center gap-2">
+            <TabsTrigger value="updates" className="flex items-center gap-2 justify-start px-4 py-3 data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-lg">
               <MessageSquare className="h-4 w-4" />
               Updates ({recentNotes.length})
             </TabsTrigger>
           </TabsList>
+
+          <div className="flex-1 min-w-0">
 
           {/* Active Orders Tab */}
           <TabsContent value="active" className="space-y-4">
@@ -634,6 +636,7 @@ export default function ClientPortal() {
               </div>
             )}
           </TabsContent>
+          </div>
         </Tabs>
       </div>
 
