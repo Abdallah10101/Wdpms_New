@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { InvoiceViewer, Invoice, InvoiceStatus } from '@/components/invoices/InvoiceViewer';
@@ -61,6 +61,7 @@ const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
 
 export default function ClientPortal() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, role, isLoading: authLoading } = useAuth();
   
   const [client, setClient] = useState<ClientData | null>(null);
@@ -229,6 +230,7 @@ export default function ClientPortal() {
 
   const activeOrders = orders.filter(o => o.current_stage !== 'delivered');
   const completedOrders = orders.filter(o => o.current_stage === 'delivered');
+  const activeTab = searchParams.get('tab') || 'active';
 
   if (authLoading || !user) {
     return null;
@@ -307,31 +309,9 @@ export default function ClientPortal() {
 
         </div>
 
-        {/* Main Content Tabs */}
-        <Tabs defaultValue="active" className="flex gap-6" orientation="vertical">
-          <TabsList className="flex flex-col h-auto items-stretch bg-transparent gap-1 min-w-[200px] shrink-0">
-            <TabsTrigger value="active" className="flex items-center gap-2 justify-start px-4 py-3 data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-lg">
-              <Package className="h-4 w-4" />
-              Active Orders ({activeOrders.length})
-            </TabsTrigger>
-            <TabsTrigger value="completed" className="flex items-center gap-2 justify-start px-4 py-3 data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-lg">
-              <CheckCircle2 className="h-4 w-4" />
-              Completed ({completedOrders.length})
-            </TabsTrigger>
-            <TabsTrigger value="invoices" className="flex items-center gap-2 justify-start px-4 py-3 data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-lg">
-              <FileText className="h-4 w-4" />
-              Invoices ({clientInvoices.length})
-            </TabsTrigger>
-            <TabsTrigger value="updates" className="flex items-center gap-2 justify-start px-4 py-3 data-[state=active]:bg-muted data-[state=active]:shadow-none rounded-lg">
-              <MessageSquare className="h-4 w-4" />
-              Updates ({recentNotes.length})
-            </TabsTrigger>
-          </TabsList>
-
-          <div className="flex-1 min-w-0">
-
-          {/* Active Orders Tab */}
-          <TabsContent value="active" className="space-y-4">
+        {/* Content based on active tab */}
+        {activeTab === 'active' && (
+          <div className="space-y-4">
             {activeOrders.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
@@ -494,10 +474,11 @@ export default function ClientPortal() {
                 })}
               </div>
             )}
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Completed Orders Tab */}
-          <TabsContent value="completed">
+        {activeTab === 'completed' && (
+          <div>
             {completedOrders.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
@@ -534,10 +515,11 @@ export default function ClientPortal() {
                 ))}
               </div>
             )}
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Updates/Notes Tab */}
-          <TabsContent value="updates">
+        {activeTab === 'updates' && (
+          <div>
             {recentNotes.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
@@ -577,10 +559,11 @@ export default function ClientPortal() {
                 </CardContent>
               </Card>
             )}
-          </TabsContent>
+          </div>
+        )}
 
-          {/* Invoices Tab */}
-          <TabsContent value="invoices">
+        {activeTab === 'invoices' && (
+          <div>
             {clientInvoices.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
@@ -635,9 +618,8 @@ export default function ClientPortal() {
                 ))}
               </div>
             )}
-          </TabsContent>
           </div>
-        </Tabs>
+        )}
       </div>
 
       {/* Invoice Viewer Dialog */}
