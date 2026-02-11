@@ -279,65 +279,65 @@ export default function Calculator() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-stone-50 relative">
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative">
         {/* Noise texture overlay */}
-        <div className="absolute inset-0 opacity-30 pointer-events-none" style={{
+        <div className="absolute inset-0 opacity-20 dark:opacity-10 pointer-events-none" style={{
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")`,
         }} />
         
         <div className="relative z-10 p-6">
-          <h1 className="text-2xl font-bold text-stone-900 mb-6">Pricing Calculator</h1>
+          <h1 className="text-2xl font-bold text-foreground mb-6">Pricing Calculator</h1>
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Inputs */}
             <div className="lg:col-span-2 space-y-6">
               {/* Order Details */}
-              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-stone-800">Order Details</CardTitle>
+                  <CardTitle className="text-lg font-semibold text-foreground">Order Details</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Order Name</Label>
+                      <Label className="text-muted-foreground">Order Name</Label>
                       <Input
                         value={orderName}
                         onChange={(e) => setOrderName(e.target.value)}
                         placeholder="Enter order name"
-                        className="bg-white/50 border-stone-200"
+                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Quantity</Label>
+                      <Label className="text-muted-foreground">Quantity</Label>
                       <Input
                         type="number"
                         value={quantity}
                         onChange={(e) => setQuantity(Number(e.target.value))}
-                        className="bg-white/50 border-stone-200"
+                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Display Currency</Label>
+                      <Label className="text-muted-foreground">Display Currency</Label>
                       <Select value={displayCurrency} onValueChange={(v) => setDisplayCurrency(v as Currency)}>
-                        <SelectTrigger className="bg-white/50 border-stone-200">
+                        <SelectTrigger className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-white border-stone-200">
+                        <SelectContent className="bg-popover border-border text-popover-foreground">
                           <SelectItem value="TRY">₺ TRY</SelectItem>
                           <SelectItem value="EUR">€ EUR</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Exchange Rate (1 EUR = ? TRY)</Label>
+                      <Label className="text-muted-foreground">Exchange Rate (1 EUR = ? TRY)</Label>
                       <Input
                         type="number"
                         step="0.01"
                         value={exchangeRate}
                         onChange={(e) => setExchangeRate(Number(e.target.value))}
-                        className="bg-white/50 border-stone-200"
+                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                   </div>
@@ -345,32 +345,32 @@ export default function Calculator() {
               </Card>
 
               {/* Base Costs */}
-              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-stone-800">Base Costs (TRY)</CardTitle>
+                  <CardTitle className="text-lg font-semibold text-foreground">Base Costs (TRY)</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Fabric Cost per Piece</Label>
+                      <Label className="text-muted-foreground">Fabric Cost per Piece</Label>
                       <Input
                         type="number"
                         step="0.01"
                         value={fabricCost || ""}
                         onChange={(e) => setFabricCost(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-white/50 border-stone-200"
+                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Production Cost per Piece</Label>
+                      <Label className="text-muted-foreground">Production Cost per Piece</Label>
                       <Input
                         type="number"
                         step="0.01"
                         value={productionCost || ""}
                         onChange={(e) => setProductionCost(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-white/50 border-stone-200"
+                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                   </div>
@@ -380,7 +380,7 @@ export default function Calculator() {
                     <CollapsibleTrigger asChild>
                       <Button
                         variant="outline"
-                        className="w-full justify-between bg-white/50 border-stone-200 hover:bg-white/80"
+                        className="w-full justify-between bg-background/60 border-border hover:bg-muted/40"
                       >
                         <span className="flex items-center gap-2">
                           Accessories ({accessories.length})
@@ -390,17 +390,17 @@ export default function Calculator() {
                     </CollapsibleTrigger>
                     <CollapsibleContent className="mt-4 space-y-3">
                       {accessories.map((acc) => (
-                        <div key={acc.id} className="flex items-end gap-2 p-3 bg-white/40 rounded-lg">
+                        <div key={acc.id} className="flex items-end gap-2 p-3 bg-muted/20 rounded-lg border border-border/50">
                           <div className="flex-1 space-y-1">
-                            <Label className="text-xs text-stone-500">Type</Label>
+                            <Label className="text-xs text-muted-foreground">Type</Label>
                             <Select
                               value={acc.type}
                               onValueChange={(v) => updateAccessory(acc.id, "type", v)}
                             >
-                              <SelectTrigger className="bg-white/50 border-stone-200 h-9">
+                              <SelectTrigger className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground h-9">
                                 <SelectValue />
                               </SelectTrigger>
-                              <SelectContent className="bg-white border-stone-200">
+                              <SelectContent className="bg-popover border-border text-popover-foreground">
                                 {ACCESSORY_TYPES.map((type) => (
                                   <SelectItem key={type} value={type}>
                                     {type}
@@ -410,27 +410,27 @@ export default function Calculator() {
                             </Select>
                           </div>
                           <div className="w-24 space-y-1">
-                            <Label className="text-xs text-stone-500">Qty</Label>
+                            <Label className="text-xs text-muted-foreground">Qty</Label>
                             <Input
                               type="number"
                               value={acc.quantity || ""}
                               onChange={(e) => updateAccessory(acc.id, "quantity", Number(e.target.value))}
-                              className="bg-white/50 border-stone-200 h-9"
+                              className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground h-9"
                             />
                           </div>
                           <div className="w-28 space-y-1">
-                            <Label className="text-xs text-stone-500">Price/Unit</Label>
+                            <Label className="text-xs text-muted-foreground">Price/Unit</Label>
                             <Input
                               type="number"
                               step="0.01"
                               value={acc.pricePerUnit || ""}
                               onChange={(e) => updateAccessory(acc.id, "pricePerUnit", Number(e.target.value))}
-                              className="bg-white/50 border-stone-200 h-9"
+                              className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground h-9"
                             />
                           </div>
                           <div className="w-24 text-right">
-                            <span className="text-xs text-stone-500 block mb-1">Per Piece</span>
-                            <span className="text-sm font-medium text-stone-700">
+                            <span className="text-xs text-muted-foreground block mb-1">Per Piece</span>
+                            <span className="text-sm font-medium text-foreground">
                               {formatCurrency((acc.quantity * acc.pricePerUnit) / (quantity || 1))}
                             </span>
                           </div>
@@ -438,7 +438,7 @@ export default function Calculator() {
                             variant="ghost"
                             size="icon"
                             onClick={() => removeAccessory(acc.id)}
-                            className="h-9 w-9 text-stone-400 hover:text-red-500"
+                            className="h-9 w-9 text-muted-foreground hover:text-destructive"
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -447,7 +447,7 @@ export default function Calculator() {
                       <Button
                         variant="outline"
                         onClick={addAccessory}
-                        className="w-full border-dashed border-stone-300 text-stone-600 hover:bg-white/50"
+                        className="w-full border-dashed border-border text-muted-foreground hover:bg-muted/40"
                       >
                         <Plus className="h-4 w-4 mr-2" />
                         Add Accessory
@@ -458,32 +458,32 @@ export default function Calculator() {
               </Card>
 
               {/* Additional Costs */}
-              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-stone-800">Additional Costs (TRY)</CardTitle>
+                  <CardTitle className="text-lg font-semibold text-foreground">Additional Costs (TRY)</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Pattern Cost per Piece</Label>
+                      <Label className="text-muted-foreground">Pattern Cost per Piece</Label>
                       <Input
                         type="number"
                         step="0.01"
                         value={patternCostPerPiece || ""}
                         onChange={(e) => setPatternCostPerPiece(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-white/50 border-stone-200"
+                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Pattern Setup Cost (one-time)</Label>
+                      <Label className="text-muted-foreground">Pattern Setup Cost (one-time)</Label>
                       <Input
                         type="number"
                         step="0.01"
                         value={patternSetupCost || ""}
                         onChange={(e) => setPatternSetupCost(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-white/50 border-stone-200"
+                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                   </div>
@@ -491,9 +491,9 @@ export default function Calculator() {
               </Card>
 
               {/* Optional Extras */}
-              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-stone-800">Optional Extras (per piece in TRY)</CardTitle>
+                  <CardTitle className="text-lg font-semibold text-foreground">Optional Extras (per piece in TRY)</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   {[
@@ -510,9 +510,9 @@ export default function Calculator() {
                           onCheckedChange={(checked) =>
                             setState({ ...state, enabled: checked as boolean })
                           }
-                          className="border-stone-300 data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
+                          className="border-border data-[state=checked]:bg-orange-500 data-[state=checked]:border-orange-500"
                         />
-                        <Label className="text-stone-600 cursor-pointer">{label}</Label>
+                        <Label className="text-muted-foreground cursor-pointer">{label}</Label>
                       </div>
                       {state.enabled && (
                         <Input
@@ -521,7 +521,7 @@ export default function Calculator() {
                           value={state.cost || ""}
                           onChange={(e) => setState({ ...state, cost: Number(e.target.value) })}
                           placeholder="0.00"
-                          className="flex-1 max-w-32 bg-white/50 border-stone-200"
+                          className="flex-1 max-w-32 bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
                         />
                       )}
                     </div>
@@ -530,30 +530,30 @@ export default function Calculator() {
               </Card>
 
               {/* Profit Margins */}
-              <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
                 <CardHeader className="pb-4">
-                  <CardTitle className="text-lg font-semibold text-stone-800">Profit Margins</CardTitle>
+                  <CardTitle className="text-lg font-semibold text-foreground">Profit Margins</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Profit per Piece</Label>
+                      <Label className="text-muted-foreground">Profit per Piece</Label>
                       <Input
                         type="number"
                         step="0.01"
                         value={profitPerPiece || ""}
                         onChange={(e) => setProfitPerPiece(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-white/50 border-stone-200"
+                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-stone-600">Profit Currency</Label>
+                      <Label className="text-muted-foreground">Profit Currency</Label>
                       <Select value={profitCurrency} onValueChange={(v) => setProfitCurrency(v as Currency)}>
-                        <SelectTrigger className="bg-white/50 border-stone-200">
+                        <SelectTrigger className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-white border-stone-200">
+                        <SelectContent className="bg-popover border-border text-popover-foreground">
                           <SelectItem value="TRY">₺ TRY</SelectItem>
                           <SelectItem value="EUR">€ EUR</SelectItem>
                         </SelectContent>
@@ -568,69 +568,69 @@ export default function Calculator() {
             <div className="lg:col-span-1">
               <div className="sticky top-6 space-y-6">
                 {/* Cost Breakdown */}
-                <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+                <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg font-semibold text-stone-800">Cost Breakdown</CardTitle>
+                    <CardTitle className="text-lg font-semibold text-foreground">Cost Breakdown</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-stone-600">Fabric Cost</span>
-                      <span className="font-medium text-stone-800">{formatCurrency(calculations.fabricCostTRY)}</span>
+                      <span className="text-muted-foreground">Fabric Cost</span>
+                      <span className="font-medium text-foreground">{formatCurrency(calculations.fabricCostTRY)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-stone-600">Production Cost</span>
-                      <span className="font-medium text-stone-800">{formatCurrency(calculations.productionCostTRY)}</span>
+                      <span className="text-muted-foreground">Production Cost</span>
+                      <span className="font-medium text-foreground">{formatCurrency(calculations.productionCostTRY)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-stone-600">Accessories Cost</span>
-                      <span className="font-medium text-stone-800">{formatCurrency(calculations.accessoriesPerPiece)}</span>
+                      <span className="text-muted-foreground">Accessories Cost</span>
+                      <span className="font-medium text-foreground">{formatCurrency(calculations.accessoriesPerPiece)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-stone-600">Pattern Cost</span>
-                      <span className="font-medium text-stone-800">{formatCurrency(calculations.patternCostPerPiece)}</span>
+                      <span className="text-muted-foreground">Pattern Cost</span>
+                      <span className="font-medium text-foreground">{formatCurrency(calculations.patternCostPerPiece)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-stone-600">Setup Cost (per piece)</span>
-                      <span className="font-medium text-stone-800">{formatCurrency(calculations.setupPerPiece)}</span>
+                      <span className="text-muted-foreground">Setup Cost (per piece)</span>
+                      <span className="font-medium text-foreground">{formatCurrency(calculations.setupPerPiece)}</span>
                     </div>
                     {calculations.extrasPerPiece > 0 && (
                       <div className="flex justify-between text-sm">
-                        <span className="text-stone-600">Extras Cost</span>
-                        <span className="font-medium text-stone-800">{formatCurrency(calculations.extrasPerPiece)}</span>
+                        <span className="text-muted-foreground">Extras Cost</span>
+                        <span className="font-medium text-foreground">{formatCurrency(calculations.extrasPerPiece)}</span>
                       </div>
                     )}
-                    <div className="border-t border-stone-200 pt-3">
+                    <div className="border-t border-border pt-3">
                       <div className="flex justify-between">
-                        <span className="font-semibold text-stone-700">Total Cost per Piece</span>
-                        <span className="font-bold text-stone-900">{formatCurrency(calculations.totalCostTRY)}</span>
+                        <span className="font-semibold text-foreground">Total Cost per Piece</span>
+                        <span className="font-bold text-foreground">{formatCurrency(calculations.totalCostTRY)}</span>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
                 {/* Cost With Your Profit */}
-                <Card className="backdrop-blur-xl bg-white/70 border-stone-200/50 shadow-lg">
+                <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
                   <CardHeader className="pb-4">
-                    <CardTitle className="text-lg font-semibold text-stone-800">Cost With Your Profit</CardTitle>
+                    <CardTitle className="text-lg font-semibold text-foreground">Cost With Your Profit</CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-3">
                     <div className="flex justify-between text-sm">
-                      <span className="text-stone-600">Total Cost</span>
-                      <span className="font-medium text-stone-800">{formatCurrency(calculations.totalCostTRY)}</span>
+                      <span className="text-muted-foreground">Total Cost</span>
+                      <span className="font-medium text-foreground">{formatCurrency(calculations.totalCostTRY)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-stone-600">+ Your Profit</span>
-                      <span className="font-medium text-stone-800">{formatCurrency(calculations.profitInTRY)}</span>
+                      <span className="text-muted-foreground">+ Your Profit</span>
+                      <span className="font-medium text-foreground">{formatCurrency(calculations.profitInTRY)}</span>
                     </div>
-                    <div className="border-t border-stone-200 pt-3">
+                    <div className="border-t border-border pt-3">
                       <div className="flex justify-between">
-                        <span className="font-semibold text-stone-700">Wholesale Price</span>
-                        <span className="font-bold text-stone-900">{formatCurrency(calculations.wholesalePriceTRY)}</span>
+                        <span className="font-semibold text-foreground">Wholesale Price</span>
+                        <span className="font-bold text-foreground">{formatCurrency(calculations.wholesalePriceTRY)}</span>
                       </div>
                     </div>
                     <div className="flex justify-between">
-                      <span className="font-semibold text-stone-700">Retail Price (×2.2)</span>
-                      <span className="font-bold text-stone-900">{formatCurrency(calculations.retailPriceTRY)}</span>
+                      <span className="font-semibold text-foreground">Retail Price (×2.2)</span>
+                      <span className="font-bold text-foreground">{formatCurrency(calculations.retailPriceTRY)}</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -668,7 +668,7 @@ export default function Calculator() {
                   <Button
                     onClick={handlePrint}
                     variant="outline"
-                    className="w-full border-orange-300 text-orange-600 hover:bg-orange-50"
+                    className="w-full border-primary/40 text-primary hover:bg-primary/10"
                   >
                     <Printer className="h-4 w-4 mr-2" />
                     Print Report
