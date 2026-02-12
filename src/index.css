@@ -14,9 +14,9 @@
 @layer base {
   :root {
     /* Light mode (fallback) */
-    --background: 0 0% 96%;
+    --background: 0 0% 93%;
     --foreground: 0 0% 9%;
-    --card: 0 0% 98%;
+    --card: 0 0% 100%;
     --card-foreground: 0 0% 9%;
     --popover: 0 0% 89%;
     --popover-foreground: 0 0% 9%;
