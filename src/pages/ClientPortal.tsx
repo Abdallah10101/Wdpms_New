@@ -325,55 +325,170 @@ export default function ClientPortal() {
               </Card>
             </div>
 
-            {/* Active Orders Preview */}
+            {/* Active Orders - same layout as Active Orders tab */}
             {activeOrders.length > 0 && (
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle className="flex items-center gap-2">
-                      <Package className="h-5 w-5" />
-                      Active Orders
-                    </CardTitle>
-                    <CardDescription>Orders currently in production</CardDescription>
-                  </div>
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold flex items-center gap-2">
+                    <Package className="h-5 w-5" />
+                    Active Orders
+                  </h2>
                   <Button variant="outline" size="sm" asChild>
                     <Link to="/portal?tab=active">View All <ArrowRight className="ml-1 h-4 w-4" /></Link>
                   </Button>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {activeOrders.slice(0, 5).map((order) => {
-                      const stageConfig = getStageConfig(order.current_stage);
-                      const progress = getClientStageProgress(order.current_stage);
-                      return (
-                        <Link
-                          key={order.id}
-                          to={`/orders/${order.id}`}
-                          className="flex items-center gap-4 rounded-lg border p-3 hover:bg-accent/50 transition-colors"
-                        >
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium truncate">{order.product_name}</p>
-                              <Badge variant="secondary" className={`${stageConfig.color} text-white text-[10px]`}>
-                                {stageConfig.label}
-                              </Badge>
+                </div>
+                <div className="grid gap-4">
+                  {activeOrders.slice(0, 5).map((order) => {
+                    const stageConfig = getStageConfig(order.current_stage);
+                    const progress = getClientStageProgress(order.current_stage);
+                    return (
+                      <Card key={order.id} className="overflow-hidden">
+                        <CardContent className="p-6">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-3">
+                                <h3 className="font-semibold text-lg truncate">{order.product_name}</h3>
+                                <Badge variant="secondary" className={`${stageConfig.color} text-white`}>
+                                  {stageConfig.label}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">
+                                Order #{order.order_number}
+                              </p>
+                              <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+                                <span>Qty: {order.quantity}</span>
+                                {order.pieces_sent ? (
+                                  <span className="flex items-center gap-1">
+                                    <Truck className="h-3 w-3" />
+                                    {order.pieces_sent} sent
+                                  </span>
+                                ) : null}
+                                {order.stage_updated_at && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Updated {formatDistanceToNow(new Date(order.stage_updated_at), { addSuffix: true })}
+                                  </span>
+                                )}
+                              </div>
+                              {(order.has_printing || order.has_embroidery || order.has_wash_house) && (
+                                <div className="flex flex-wrap gap-1.5 mt-2">
+                                  {order.has_printing && (
+                                    <Badge variant="outline" className="text-xs flex items-center gap-1 px-2 py-0.5">
+                                      <Printer className="h-3 w-3 text-blue-500" />
+                                      Printing
+                                    </Badge>
+                                  )}
+                                  {order.has_embroidery && (
+                                    <Badge variant="outline" className="text-xs flex items-center gap-1 px-2 py-0.5">
+                                      <Sparkles className="h-3 w-3 text-purple-500" />
+                                      Embroidery
+                                    </Badge>
+                                  )}
+                                  {order.has_wash_house && (
+                                    <Badge variant="outline" className="text-xs flex items-center gap-1 px-2 py-0.5">
+                                      <Waves className="h-3 w-3 text-cyan-500" />
+                                      Wash House
+                                    </Badge>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">#{order.order_number} · Qty: {order.quantity}</p>
-                          </div>
-                          <div className="w-24 shrink-0">
-                            <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
-                              <span>Progress</span>
-                              <span>{Math.round(progress)}%</span>
+                            
+                            <div className="lg:w-48">
+                              <div className="flex items-center justify-between text-xs mb-1">
+                                <span>Progress</span>
+                                <span>{Math.round(progress)}%</span>
+                              </div>
+                              <Progress value={progress} className="h-2" />
                             </div>
-                            <Progress value={progress} className="h-1.5" />
+                            
+                            <Button variant="outline" size="sm" asChild>
+                              <Link to={`/orders/${order.id}`}>
+                                View Details
+                                <ArrowRight className="ml-2 h-4 w-4" />
+                              </Link>
+                            </Button>
                           </div>
-                          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                        </Link>
-                      );
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
+
+                          {/* Stage Progress Visualization */}
+                          <div className="mt-6 overflow-x-auto">
+                            <div className="flex items-center gap-1 min-w-max">
+                              {CLIENT_VISIBLE_STAGES.map((stage, index) => {
+                                const isActive = order.current_stage === stage.value;
+                                const currentIndex = CLIENT_VISIBLE_STAGES.findIndex(s => s.value === order.current_stage);
+                                const isPast = currentIndex > index;
+                                const isInInternalStage = order.current_stage === 'not_started' || order.current_stage === 'sample';
+                                
+                                return (
+                                  <div key={stage.value} className="flex items-center">
+                                    <div
+                                      className={`
+                                        flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium
+                                        ${isActive ? `${stage.color} text-white ring-2 ring-offset-2 ring-primary` : ''}
+                                        ${isPast && !isInInternalStage ? 'bg-primary text-primary-foreground' : ''}
+                                        ${!isActive && (!isPast || isInInternalStage) ? 'bg-muted text-muted-foreground' : ''}
+                                      `}
+                                    >
+                                      {isPast && !isInInternalStage ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                                    </div>
+                                    {index < CLIENT_VISIBLE_STAGES.length - 1 && (
+                                      <div className={`w-6 h-0.5 ${isPast && !isInInternalStage ? 'bg-primary' : 'bg-muted'}`} />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            <div className="flex items-center gap-1 min-w-max mt-1">
+                              {CLIENT_VISIBLE_STAGES.map((stage, index) => (
+                                <div key={stage.value} className="flex items-center">
+                                  <div className="w-8 text-center">
+                                    <span className="text-[10px] text-muted-foreground leading-none">
+                                      {stage.label.slice(0, 3)}
+                                    </span>
+                                  </div>
+                                  {index < CLIENT_VISIBLE_STAGES.length - 1 && <div className="w-6" />}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Stage Images */}
+                          {stageImagesByOrder[order.id] && (
+                            <div className="mt-5 space-y-2">
+                              <p className="text-sm font-medium">Stage Images</p>
+                              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                                {CLIENT_STAGE_IMAGE_STAGES.map((stage) => {
+                                  const image = stageImagesByOrder[order.id]?.[stage];
+                                  return (
+                                    <div key={stage} className="rounded-md border p-2">
+                                      <p className="text-[11px] text-muted-foreground mb-1">
+                                        {STAGE_IMAGE_LABELS[stage]}
+                                      </p>
+                                      {image?.signedUrl ? (
+                                        <a href={image.signedUrl} target="_blank" rel="noreferrer">
+                                          <img
+                                            src={image.signedUrl}
+                                            alt={`${STAGE_IMAGE_LABELS[stage]} update`}
+                                            className="h-20 w-full rounded object-contain border bg-muted/30"
+                                          />
+                                        </a>
+                                      ) : (
+                                        <div className="h-20 w-full rounded border border-dashed flex items-center justify-center text-muted-foreground">
+                                          <ImageIcon className="h-4 w-4" />
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
             )}
 
             {/* Recent Updates Preview */}
