@@ -269,47 +269,59 @@ export default function ClientPortal() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* Welcome Header */}
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Welcome, {client.brand_name || client.name}
-          </h1>
-          <p className="text-muted-foreground">
-            Track your orders and view production updates
-          </p>
-        </div>
-
-        {/* Stats Overview */}
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
-              <Package className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{activeOrders.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {activeOrders.length === 1 ? 'Order' : 'Orders'} in production
+        {/* Active Orders - dedicated clean page */}
+        {activeTab === 'active' && (
+          <>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">Active Orders</h1>
+              <p className="text-muted-foreground">
+                {activeOrders.length} {activeOrders.length === 1 ? 'order' : 'orders'} currently in production
               </p>
-            </CardContent>
-          </Card>
+            </div>
+          </>
+        )}
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium">Completed</CardTitle>
-              <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{completedOrders.length}</div>
-              <p className="text-xs text-muted-foreground">
-                Orders delivered
+        {activeTab !== 'active' && (
+          <>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight">
+                Welcome, {client.brand_name || client.name}
+              </h1>
+              <p className="text-muted-foreground">
+                Track your orders and view production updates
               </p>
-            </CardContent>
-          </Card>
+            </div>
 
-        </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
+                  <Package className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{activeOrders.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    {activeOrders.length === 1 ? 'Order' : 'Orders'} in production
+                  </p>
+                </CardContent>
+              </Card>
 
-        {/* Content based on active tab */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Completed</CardTitle>
+                  <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{completedOrders.length}</div>
+                  <p className="text-xs text-muted-foreground">
+                    Orders delivered
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+
         {activeTab === 'active' && (
           <div className="space-y-4">
             {activeOrders.length === 0 ? (
