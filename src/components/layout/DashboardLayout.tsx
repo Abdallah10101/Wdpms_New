@@ -250,7 +250,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex flex-1 flex-col overflow-hidden relative z-0">
         {/* Top bar */}
         <header className="flex h-16 items-center gap-4 border-b border-border bg-background px-4 lg:px-6">
           <Button
