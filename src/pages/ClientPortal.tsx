@@ -230,7 +230,7 @@ export default function ClientPortal() {
 
   const activeOrders = orders.filter(o => o.current_stage !== 'delivered');
   const completedOrders = orders.filter(o => o.current_stage === 'delivered');
-  const activeTab = searchParams.get('tab') || 'active';
+  const activeTab = searchParams.get('tab') || 'dashboard';
 
   if (authLoading || !user) {
     return null;
@@ -271,28 +271,28 @@ export default function ClientPortal() {
       <div className="space-y-6">
         {/* Active Orders - dedicated clean page */}
         {activeTab === 'active' && (
-          <>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Active Orders</h1>
-              <p className="text-muted-foreground">
-                {activeOrders.length} {activeOrders.length === 1 ? 'order' : 'orders'} currently in production
-              </p>
-            </div>
-          </>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Active Orders</h1>
+            <p className="text-muted-foreground">
+              {activeOrders.length} {activeOrders.length === 1 ? 'order' : 'orders'} currently in production
+            </p>
+          </div>
         )}
 
-        {activeTab !== 'active' && (
+        {/* Dashboard - overview of everything */}
+        {activeTab === 'dashboard' && (
           <>
             <div>
               <h1 className="text-2xl font-bold tracking-tight">
                 Welcome, {client.brand_name || client.name}
               </h1>
               <p className="text-muted-foreground">
-                Track your orders and view production updates
+                Here's an overview of your orders and activity
               </p>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-2">
+            {/* Stats */}
+            <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium">Active Orders</CardTitle>
@@ -300,12 +300,9 @@ export default function ClientPortal() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{activeOrders.length}</div>
-                  <p className="text-xs text-muted-foreground">
-                    {activeOrders.length === 1 ? 'Order' : 'Orders'} in production
-                  </p>
+                  <p className="text-xs text-muted-foreground">In production</p>
                 </CardContent>
               </Card>
-
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-sm font-medium">Completed</CardTitle>
@@ -313,12 +310,154 @@ export default function ClientPortal() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{completedOrders.length}</div>
-                  <p className="text-xs text-muted-foreground">
-                    Orders delivered
-                  </p>
+                  <p className="text-xs text-muted-foreground">Delivered</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium">Invoices</CardTitle>
+                  <FileText className="h-4 w-4 text-muted-foreground" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{clientInvoices.length}</div>
+                  <p className="text-xs text-muted-foreground">Total invoices</p>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Active Orders Preview */}
+            {activeOrders.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <Package className="h-5 w-5" />
+                      Active Orders
+                    </CardTitle>
+                    <CardDescription>Orders currently in production</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/portal?tab=active">View All <ArrowRight className="ml-1 h-4 w-4" /></Link>
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {activeOrders.slice(0, 5).map((order) => {
+                      const stageConfig = getStageConfig(order.current_stage);
+                      const progress = getClientStageProgress(order.current_stage);
+                      return (
+                        <Link
+                          key={order.id}
+                          to={`/orders/${order.id}`}
+                          className="flex items-center gap-4 rounded-lg border p-3 hover:bg-accent/50 transition-colors"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium truncate">{order.product_name}</p>
+                              <Badge variant="secondary" className={`${stageConfig.color} text-white text-[10px]`}>
+                                {stageConfig.label}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">#{order.order_number} · Qty: {order.quantity}</p>
+                          </div>
+                          <div className="w-24 shrink-0">
+                            <div className="flex justify-between text-[10px] text-muted-foreground mb-1">
+                              <span>Progress</span>
+                              <span>{Math.round(progress)}%</span>
+                            </div>
+                            <Progress value={progress} className="h-1.5" />
+                          </div>
+                          <ArrowRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Recent Updates Preview */}
+            {recentNotes.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <MessageSquare className="h-5 w-5" />
+                      Recent Updates
+                    </CardTitle>
+                    <CardDescription>Latest messages from your team</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/portal?tab=updates">View All <ArrowRight className="ml-1 h-4 w-4" /></Link>
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {recentNotes.slice(0, 4).map((note) => (
+                      <div key={note.id} className="border-b pb-3 last:border-0 last:pb-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Badge variant="outline" className="text-xs">
+                            {(note.order as any)?.product_name || 'Order'}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
+                          </span>
+                        </div>
+                        <p className="text-sm text-muted-foreground line-clamp-2">{note.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Recent Invoices Preview */}
+            {clientInvoices.length > 0 && (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileText className="h-5 w-5" />
+                      Recent Invoices
+                    </CardTitle>
+                    <CardDescription>Your latest invoices</CardDescription>
+                  </div>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link to="/portal?tab=invoices">View All <ArrowRight className="ml-1 h-4 w-4" /></Link>
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {clientInvoices.slice(0, 3).map((invoice) => (
+                      <div
+                        key={invoice.id}
+                        className="flex items-center gap-3 rounded-lg border p-3 cursor-pointer hover:bg-accent/50 transition-colors"
+                        onClick={() => {
+                          setSelectedInvoice(invoice);
+                          setInvoiceViewerOpen(true);
+                        }}
+                      >
+                        <div className="rounded-lg bg-primary/10 p-2">
+                          <FileText className="h-4 w-4 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <p className="font-mono text-sm font-medium">{invoice.invoice_number}</p>
+                            <Badge className={INVOICE_STATUS_COLORS[invoice.status]}>
+                              {INVOICE_STATUS_LABELS[invoice.status]}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-0.5">{invoice.order_name}</p>
+                        </div>
+                        <span className="text-sm font-semibold shrink-0">
+                          €{(invoice.wholesale_price * invoice.quantity).toLocaleString()}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </>
         )}
 

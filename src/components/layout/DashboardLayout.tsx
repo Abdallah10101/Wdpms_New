@@ -49,6 +49,12 @@ const navItems: NavItem[] = [
     roles: ['admin', 'team'],
   },
   {
+    label: 'Dashboard',
+    href: '/portal?tab=dashboard',
+    icon: <LayoutDashboard className="h-5 w-5" />,
+    roles: ['client'],
+  },
+  {
     label: 'Active Orders',
     href: '/portal?tab=active',
     icon: <Package className="h-5 w-5" />,
