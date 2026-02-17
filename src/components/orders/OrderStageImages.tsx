@@ -68,6 +68,8 @@ export function OrderStageImages({ orderId, canUpload }: OrderStageImagesProps) 
 
       if (error) throw error;
 
+      console.log('[StageImages] DB rows returned:', data?.length, data);
+
       const latestByStage: Partial<Record<ClientStageImageStage, StageImageRow>> = {};
       for (const row of (data || []) as StageImageRow[]) {
         const stage = categoryToStage(row.category);
@@ -80,9 +82,15 @@ export function OrderStageImages({ orderId, canUpload }: OrderStageImagesProps) 
           const row = latestByStage[stage];
           if (!row) return [stage, undefined] as const;
 
-          const { data: signedData } = await supabase.storage
+          const { data: signedData, error: signedError } = await supabase.storage
             .from('order-files')
             .createSignedUrl(row.file_path, 60 * 60);
+
+          console.log(`[StageImages] signedUrl for "${stage}":`, signedData?.signedUrl ?? null, signedError ?? 'no error');
+
+          if (signedError) {
+            console.error(`createSignedUrl failed for stage "${stage}" (path: ${row.file_path}):`, signedError);
+          }
 
           return [
             stage,
@@ -147,6 +155,7 @@ export function OrderStageImages({ orderId, canUpload }: OrderStageImagesProps) 
         .from('order-files')
         .upload(filePath, file, { upsert: false });
 
+      console.log('[StageImages] storage upload result:', uploadError ?? 'success', 'path:', filePath);
       if (uploadError) throw uploadError;
 
       const { error: insertError } = await supabase.from('order_files').insert({
@@ -159,6 +168,7 @@ export function OrderStageImages({ orderId, canUpload }: OrderStageImagesProps) 
         is_client_visible: true,
       });
 
+      console.log('[StageImages] DB insert result:', insertError ?? 'success', 'category:', category);
       if (insertError) throw insertError;
 
       toast({

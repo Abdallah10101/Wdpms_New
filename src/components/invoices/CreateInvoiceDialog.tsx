@@ -15,7 +15,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { CalendarIcon, Loader2, FileText, Plus, Trash2, Package } from 'lucide-react';
@@ -60,6 +59,8 @@ interface CreateInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
+  currency?: string;
+  exchangeRate?: number;
 }
 
 const DEFAULT_INCLUSIONS = [
@@ -75,9 +76,9 @@ const DEFAULT_INCLUSIONS = [
   'Labels',
 ];
 
-const DEFAULT_TERMS = `Terms and Conditions:
+const getDefaultTerms = (currency: string) => `Terms and Conditions:
 • This invoice total does not include taxes that may be applicable based on your location
-• The prices above are in (EUR)
+• The prices above are in (${currency})
 • Payment terms is 100% in advance
 • Processing & Manufacturing for the order is 10-15 business days
 • Delivery will be made in 3-5 business days`;
@@ -86,6 +87,8 @@ export function CreateInvoiceDialog({
   open,
   onOpenChange,
   onSuccess,
+  currency: propCurrency = 'EUR',
+  exchangeRate: propExchangeRate = 50.43,
 }: CreateInvoiceDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -94,10 +97,19 @@ export function CreateInvoiceDialog({
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [dueDate, setDueDate] = useState<Date | undefined>();
-  const [termsAndConditions, setTermsAndConditions] = useState(DEFAULT_TERMS);
+  const [termsAndConditions, setTermsAndConditions] = useState(() => getDefaultTerms(propCurrency));
   const [clientNotes, setClientNotes] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
-  const [exchangeRate, setExchangeRate] = useState(50.43);
+  const [exchangeRate, setExchangeRate] = useState(propExchangeRate);
+
+  // Sync exchange rate and terms when props change
+  useEffect(() => {
+    setExchangeRate(propExchangeRate);
+  }, [propExchangeRate]);
+
+  useEffect(() => {
+    setTermsAndConditions(getDefaultTerms(propCurrency));
+  }, [propCurrency]);
   
   // Line items
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
@@ -299,7 +311,7 @@ export function CreateInvoiceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[900px] h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5 text-primary" />
@@ -310,7 +322,7 @@ export function CreateInvoiceDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
+        <div className="flex-1 overflow-y-auto pr-4">
           <div className="space-y-6 py-4">
             {/* Client Selection */}
             <div className="grid grid-cols-2 gap-4">
@@ -387,7 +399,7 @@ export function CreateInvoiceDialog({
                 </Popover>
               </div>
               <div className="space-y-2">
-                <Label>Exchange Rate (1 EUR = TRY)</Label>
+                <Label>Exchange Rate (1 {propCurrency} = TRY)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -460,7 +472,7 @@ export function CreateInvoiceDialog({
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-xs">Unit Price (EUR)</Label>
+                      <Label className="text-xs">Unit Price ({propCurrency})</Label>
                       <Input
                         type="number"
                         step="0.01"
@@ -560,7 +572,7 @@ export function CreateInvoiceDialog({
               </div>
             </div>
           </div>
-        </ScrollArea>
+        </div>
 
         <DialogFooter className="mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>

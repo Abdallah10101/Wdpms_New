@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect, useCallback } from "react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,11 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Printer, Plus, X, ChevronDown, ChevronUp, FileText } from "lucide-react";
+import { Printer, Plus, X, ChevronDown, ChevronUp, FileText, RefreshCw } from "lucide-react";
 import { CreateInvoiceDialog } from "@/components/invoices/CreateInvoiceDialog";
 import { useToast } from "@/hooks/use-toast";
 import { escapeHtml } from "@/lib/html-escape";
-type Currency = "TRY" | "EUR";
+const FALLBACK_CURRENCIES = ["TRY", "EUR", "USD", "GBP", "AED", "SAR", "JPY", "CNY"];
 
 interface Accessory {
   id: string;
@@ -48,8 +48,42 @@ export default function Calculator() {
   // Order Details
   const [orderName, setOrderName] = useState("");
   const [quantity, setQuantity] = useState(100);
-  const [displayCurrency, setDisplayCurrency] = useState<Currency>("TRY");
+  const [displayCurrency, setDisplayCurrency] = useState("TRY");
   const [exchangeRate, setExchangeRate] = useState(50.43);
+
+  // Exchange rates
+  const [currencies, setCurrencies] = useState<string[]>(FALLBACK_CURRENCIES);
+  const [ratesFromEUR, setRatesFromEUR] = useState<Record<string, number>>({});
+  const [rateLoading, setRateLoading] = useState(false);
+  const [rateLastUpdated, setRateLastUpdated] = useState<string | null>(null);
+
+  const fetchRates = useCallback(async () => {
+    setRateLoading(true);
+    try {
+      const res = await fetch("https://open.er-api.com/v6/latest/EUR");
+      const data = await res.json();
+      if (data.result === "success" && data.rates) {
+        setRatesFromEUR(data.rates);
+        setCurrencies(["TRY", ...Object.keys(data.rates).filter((c) => c !== "TRY").sort()]);
+        setRateLastUpdated(new Date().toLocaleTimeString());
+      }
+    } catch {
+      // keep fallback currencies
+    } finally {
+      setRateLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchRates(); }, [fetchRates]);
+
+  // Auto-update exchange rate when display currency or rates change
+  useEffect(() => {
+    if (Object.keys(ratesFromEUR).length === 0) return;
+    if (displayCurrency === "TRY") { setExchangeRate(1); return; }
+    if (ratesFromEUR["TRY"] && ratesFromEUR[displayCurrency]) {
+      setExchangeRate(+(ratesFromEUR["TRY"] / ratesFromEUR[displayCurrency]).toFixed(4));
+    }
+  }, [displayCurrency, ratesFromEUR]);
   // Base Costs (TRY)
   const [fabricCost, setFabricCost] = useState(0);
   const [productionCost, setProductionCost] = useState(0);
@@ -69,7 +103,7 @@ export default function Calculator() {
 
   // Profit
   const [profitPerPiece, setProfitPerPiece] = useState(0);
-  const [profitCurrency, setProfitCurrency] = useState<Currency>("TRY");
+  const [profitCurrency, setProfitCurrency] = useState("TRY");
 
   // Add new accessory
   const addAccessory = () => {
@@ -121,8 +155,12 @@ export default function Calculator() {
       extrasPerPiece;
 
     // Profit in TRY
-    const profitInTRY =
-      profitCurrency === "EUR" ? profitPerPiece * exchangeRate : profitPerPiece;
+    const profitRate =
+      profitCurrency === "TRY" ? 1
+      : (ratesFromEUR["TRY"] && ratesFromEUR[profitCurrency])
+        ? ratesFromEUR["TRY"] / ratesFromEUR[profitCurrency]
+        : exchangeRate;
+    const profitInTRY = profitPerPiece * profitRate;
 
     // Wholesale price in TRY
     const wholesalePriceTRY = totalCostTRY + profitInTRY;
@@ -157,14 +195,32 @@ export default function Calculator() {
     profitPerPiece,
     profitCurrency,
     exchangeRate,
+    ratesFromEUR,
   ]);
 
   // Format currency
   const formatCurrency = (valueTRY: number): string => {
-    if (displayCurrency === "EUR") {
-      return `€${(valueTRY / exchangeRate).toFixed(2)}`;
+    if (displayCurrency === "TRY") return `₺${valueTRY.toFixed(2)}`;
+    const rate = exchangeRate > 0 ? exchangeRate : 1;
+    const value = valueTRY / rate;
+    try {
+      return new Intl.NumberFormat("en-US", {
+        style: "currency", currency: displayCurrency,
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
+      }).format(value);
+    } catch {
+      return `${displayCurrency} ${value.toFixed(2)}`;
     }
-    return `₺${valueTRY.toFixed(2)}`;
+  };
+
+  const getCurrencyLabel = (code: string): string => {
+    try {
+      const symbol = new Intl.NumberFormat("en-US", { style: "currency", currency: code })
+        .formatToParts(0).find((p) => p.type === "currency")?.value ?? code;
+      return symbol === code ? code : `${symbol} ${code}`;
+    } catch {
+      return code;
+    }
   };
 
   // Print report
@@ -319,27 +375,42 @@ export default function Calculator() {
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label className="text-muted-foreground">Display Currency</Label>
-                      <Select value={displayCurrency} onValueChange={(v) => setDisplayCurrency(v as Currency)}>
+                      <div className="flex items-center justify-between">
+                        <Label className="text-muted-foreground">Display Currency</Label>
+                        <button
+                          type="button"
+                          onClick={fetchRates}
+                          disabled={rateLoading}
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                          title="Refresh live rates"
+                        >
+                          <RefreshCw className={`h-3 w-3 ${rateLoading ? "animate-spin" : ""}`} />
+                          {rateLastUpdated ? `Updated ${rateLastUpdated}` : "Live rates"}
+                        </button>
+                      </div>
+                      <Select value={displayCurrency} onValueChange={setDisplayCurrency}>
                         <SelectTrigger className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-popover border-border text-popover-foreground">
-                          <SelectItem value="TRY">₺ TRY</SelectItem>
-                          <SelectItem value="EUR">€ EUR</SelectItem>
+                        <SelectContent className="bg-popover border-border text-popover-foreground max-h-[260px]">
+                          {currencies.map((c) => (
+                            <SelectItem key={c} value={c}>{getCurrencyLabel(c)}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label className="text-muted-foreground">Exchange Rate (1 EUR = ? TRY)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={exchangeRate}
-                        onChange={(e) => setExchangeRate(Number(e.target.value))}
-                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
-                      />
-                    </div>
+                    {displayCurrency !== "TRY" && (
+                      <div className="space-y-2">
+                        <Label className="text-muted-foreground">Exchange Rate (1 {displayCurrency} = ? TRY)</Label>
+                        <Input
+                          type="number"
+                          step="0.0001"
+                          value={exchangeRate}
+                          onChange={(e) => setExchangeRate(Number(e.target.value))}
+                          className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                        />
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -549,13 +620,14 @@ export default function Calculator() {
                     </div>
                     <div className="space-y-2">
                       <Label className="text-muted-foreground">Profit Currency</Label>
-                      <Select value={profitCurrency} onValueChange={(v) => setProfitCurrency(v as Currency)}>
+                      <Select value={profitCurrency} onValueChange={setProfitCurrency}>
                         <SelectTrigger className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-popover border-border text-popover-foreground">
-                          <SelectItem value="TRY">₺ TRY</SelectItem>
-                          <SelectItem value="EUR">€ EUR</SelectItem>
+                        <SelectContent className="bg-popover border-border text-popover-foreground max-h-[260px]">
+                          {currencies.map((c) => (
+                            <SelectItem key={c} value={c}>{getCurrencyLabel(c)}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -684,6 +756,8 @@ export default function Calculator() {
       <CreateInvoiceDialog
         open={invoiceDialogOpen}
         onOpenChange={setInvoiceDialogOpen}
+        currency={displayCurrency === "TRY" ? "TRY" : displayCurrency}
+        exchangeRate={exchangeRate}
         onSuccess={() => {
           toast({
             title: "Invoice Created",
