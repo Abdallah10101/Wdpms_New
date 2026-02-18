@@ -102,6 +102,7 @@ Deno.serve(async (req) => {
       email_confirm: true, // Auto-confirm email
       user_metadata: {
         full_name: fullName,
+        must_change_password: true,
       },
     })
 

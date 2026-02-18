@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -23,7 +24,10 @@ import {
   CheckCircle,
   AlertCircle,
   Plus,
+  Download,
+  DollarSign,
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 
 const STATUS_COLORS: Record<InvoiceStatus, string> = {
@@ -56,6 +60,10 @@ export default function Invoices() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -135,6 +143,57 @@ export default function Invoices() {
     }
   };
 
+  const handleRecordPayment = async () => {
+    if (!paymentInvoice || !paymentAmount) return;
+    setIsSubmittingPayment(true);
+    try {
+      const totalAmount = paymentInvoice.wholesale_price * paymentInvoice.quantity;
+      const paid = parseFloat(paymentAmount);
+      if (isNaN(paid) || paid <= 0) {
+        toast({ title: 'Invalid Amount', description: 'Please enter a valid payment amount.', variant: 'destructive' });
+        return;
+      }
+      const newStatus: InvoiceStatus = paid >= totalAmount ? 'paid' : 'partially_paid';
+      const { error } = await supabase
+        .from('invoices')
+        .update({
+          amount_paid: paid,
+          status: newStatus,
+          ...(newStatus === 'paid' ? { paid_at: new Date().toISOString() } : {}),
+        })
+        .eq('id', paymentInvoice.id);
+
+      if (error) throw error;
+      toast({ title: 'Payment Recorded', description: `₺${paid.toLocaleString()} recorded.` });
+      setPaymentDialogOpen(false);
+      setPaymentInvoice(null);
+      setPaymentAmount('');
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error recording payment:', error);
+      toast({ title: 'Error', description: 'Failed to record payment.', variant: 'destructive' });
+    } finally {
+      setIsSubmittingPayment(false);
+    }
+  };
+
+  const exportCSV = () => {
+    const headers = ['Invoice #', 'Client', 'Order', 'Amount', 'Status', 'Date'];
+    const rows = filteredInvoices.map(inv => [
+      inv.invoice_number,
+      inv.client?.brand_name || inv.client?.name || '',
+      inv.order?.order_number || '',
+      (inv.wholesale_price * inv.quantity).toString(),
+      STATUS_LABELS[inv.status],
+      format(new Date(inv.created_at), 'yyyy-MM-dd'),
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'invoices.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const filteredInvoices = invoices.filter(invoice => {
     const matchesSearch = 
       invoice.invoice_number.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -180,10 +239,16 @@ export default function Invoices() {
             <h1 className="text-2xl font-bold">Invoices</h1>
             <p className="text-muted-foreground">Manage your invoices and billing</p>
           </div>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            New Invoice
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={exportCSV}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              New Invoice
+            </Button>
+          </div>
         </div>
 
         {/* Stats Cards */}
@@ -351,13 +416,24 @@ export default function Invoices() {
                                 Mark as Sent
                               </DropdownMenuItem>
                             )}
-                            {(invoice.status === 'sent' || invoice.status === 'viewed') && (
+                            {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partially_paid') && (
                               <DropdownMenuItem onClick={(e) => {
                                 e.stopPropagation();
                                 updateStatus(invoice.id, 'paid');
                               }}>
                                 <CheckCircle className="mr-2 h-4 w-4" />
                                 Mark as Paid
+                              </DropdownMenuItem>
+                            )}
+                            {(invoice.status === 'sent' || invoice.status === 'viewed' || invoice.status === 'partially_paid') && (
+                              <DropdownMenuItem onClick={(e) => {
+                                e.stopPropagation();
+                                setPaymentInvoice(invoice);
+                                setPaymentAmount(String(invoice.amount_paid || ''));
+                                setPaymentDialogOpen(true);
+                              }}>
+                                <DollarSign className="mr-2 h-4 w-4" />
+                                Record Payment
                               </DropdownMenuItem>
                             )}
                           </DropdownMenuContent>
@@ -386,6 +462,46 @@ export default function Invoices() {
         onOpenChange={setCreateDialogOpen}
         onSuccess={fetchInvoices}
       />
+
+      {/* Record Payment Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Record Payment</DialogTitle>
+            <DialogDescription>
+              {paymentInvoice && (
+                <>Invoice {paymentInvoice.invoice_number} — Total: ₺{(paymentInvoice.wholesale_price * paymentInvoice.quantity).toLocaleString()}</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>Amount Paid (₺)</Label>
+              <Input
+                type="number"
+                placeholder="0.00"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                min="0"
+                step="0.01"
+              />
+              {paymentInvoice && paymentAmount && (
+                <p className="text-xs text-muted-foreground">
+                  {parseFloat(paymentAmount) >= paymentInvoice.wholesale_price * paymentInvoice.quantity
+                    ? 'Will mark as Paid'
+                    : 'Will mark as Partially Paid'}
+                </p>
+              )}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleRecordPayment} disabled={isSubmittingPayment}>
+              {isSubmittingPayment ? 'Saving...' : 'Record Payment'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </DashboardLayout>
   );
 }

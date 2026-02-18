@@ -335,20 +335,14 @@ export default function Calculator() {
 
   return (
     <DashboardLayout>
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 relative">
-        {/* Noise texture overlay */}
-        <div className="absolute inset-0 opacity-20 dark:opacity-10 pointer-events-none" style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E")`,
-        }} />
-        
-        <div className="relative z-10 p-6">
+      <div className="p-6">
           <h1 className="text-2xl font-bold text-foreground mb-6">Pricing Calculator</h1>
           
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Left Column - Inputs */}
             <div className="lg:col-span-2 space-y-6">
               {/* Order Details */}
-              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
+              <Card className="bg-card border-border shadow-sm">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg font-semibold text-foreground">Order Details</CardTitle>
                 </CardHeader>
@@ -360,7 +354,7 @@ export default function Calculator() {
                         value={orderName}
                         onChange={(e) => setOrderName(e.target.value)}
                         placeholder="Enter order name"
-                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                     <div className="space-y-2">
@@ -369,7 +363,7 @@ export default function Calculator() {
                         type="number"
                         value={quantity}
                         onChange={(e) => setQuantity(Number(e.target.value))}
-                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                   </div>
@@ -389,7 +383,7 @@ export default function Calculator() {
                         </button>
                       </div>
                       <Select value={displayCurrency} onValueChange={setDisplayCurrency}>
-                        <SelectTrigger className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground">
+                        <SelectTrigger className="border-border text-foreground placeholder:text-muted-foreground">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-popover border-border text-popover-foreground max-h-[260px]">
@@ -407,7 +401,7 @@ export default function Calculator() {
                           step="0.0001"
                           value={exchangeRate}
                           onChange={(e) => setExchangeRate(Number(e.target.value))}
-                          className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                          className="border-border text-foreground placeholder:text-muted-foreground"
                         />
                       </div>
                     )}
@@ -416,7 +410,7 @@ export default function Calculator() {
               </Card>
 
               {/* Base Costs */}
-              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
+              <Card className="bg-card border-border shadow-sm">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg font-semibold text-foreground">Base Costs (TRY)</CardTitle>
                 </CardHeader>
@@ -430,7 +424,7 @@ export default function Calculator() {
                         value={fabricCost || ""}
                         onChange={(e) => setFabricCost(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                     <div className="space-y-2">
@@ -441,7 +435,7 @@ export default function Calculator() {
                         value={productionCost || ""}
                         onChange={(e) => setProductionCost(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                   </div>
@@ -468,7 +462,7 @@ export default function Calculator() {
                               value={acc.type}
                               onValueChange={(v) => updateAccessory(acc.id, "type", v)}
                             >
-                              <SelectTrigger className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground h-9">
+                              <SelectTrigger className="border-border text-foreground placeholder:text-muted-foreground h-9">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent className="bg-popover border-border text-popover-foreground">
@@ -486,7 +480,7 @@ export default function Calculator() {
                               type="number"
                               value={acc.quantity || ""}
                               onChange={(e) => updateAccessory(acc.id, "quantity", Number(e.target.value))}
-                              className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground h-9"
+                              className="border-border text-foreground placeholder:text-muted-foreground h-9"
                             />
                           </div>
                           <div className="w-28 space-y-1">
@@ -496,7 +490,7 @@ export default function Calculator() {
                               step="0.01"
                               value={acc.pricePerUnit || ""}
                               onChange={(e) => updateAccessory(acc.id, "pricePerUnit", Number(e.target.value))}
-                              className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground h-9"
+                              className="border-border text-foreground placeholder:text-muted-foreground h-9"
                             />
                           </div>
                           <div className="w-24 text-right">
@@ -529,7 +523,7 @@ export default function Calculator() {
               </Card>
 
               {/* Additional Costs */}
-              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
+              <Card className="bg-card border-border shadow-sm">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg font-semibold text-foreground">Additional Costs (TRY)</CardTitle>
                 </CardHeader>
@@ -543,7 +537,7 @@ export default function Calculator() {
                         value={patternCostPerPiece || ""}
                         onChange={(e) => setPatternCostPerPiece(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                     <div className="space-y-2">
@@ -554,7 +548,7 @@ export default function Calculator() {
                         value={patternSetupCost || ""}
                         onChange={(e) => setPatternSetupCost(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                   </div>
@@ -562,7 +556,7 @@ export default function Calculator() {
               </Card>
 
               {/* Optional Extras */}
-              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
+              <Card className="bg-card border-border shadow-sm">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg font-semibold text-foreground">Optional Extras (per piece in TRY)</CardTitle>
                 </CardHeader>
@@ -592,7 +586,7 @@ export default function Calculator() {
                           value={state.cost || ""}
                           onChange={(e) => setState({ ...state, cost: Number(e.target.value) })}
                           placeholder="0.00"
-                          className="flex-1 max-w-32 bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                          className="flex-1 max-w-32 border-border text-foreground placeholder:text-muted-foreground"
                         />
                       )}
                     </div>
@@ -601,7 +595,7 @@ export default function Calculator() {
               </Card>
 
               {/* Profit Margins */}
-              <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
+              <Card className="bg-card border-border shadow-sm">
                 <CardHeader className="pb-4">
                   <CardTitle className="text-lg font-semibold text-foreground">Profit Margins</CardTitle>
                 </CardHeader>
@@ -615,13 +609,13 @@ export default function Calculator() {
                         value={profitPerPiece || ""}
                         onChange={(e) => setProfitPerPiece(Number(e.target.value))}
                         placeholder="0.00"
-                        className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
                       />
                     </div>
                     <div className="space-y-2">
                       <Label className="text-muted-foreground">Profit Currency</Label>
                       <Select value={profitCurrency} onValueChange={setProfitCurrency}>
-                        <SelectTrigger className="bg-background/60 border-border text-foreground placeholder:text-muted-foreground">
+                        <SelectTrigger className="border-border text-foreground placeholder:text-muted-foreground">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent className="bg-popover border-border text-popover-foreground max-h-[260px]">
@@ -640,7 +634,7 @@ export default function Calculator() {
             <div className="lg:col-span-1">
               <div className="sticky top-6 space-y-6">
                 {/* Cost Breakdown */}
-                <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
+                <Card className="bg-card border-border shadow-sm">
                   <CardHeader className="pb-4">
                     <CardTitle className="text-lg font-semibold text-foreground">Cost Breakdown</CardTitle>
                   </CardHeader>
@@ -681,7 +675,7 @@ export default function Calculator() {
                 </Card>
 
                 {/* Cost With Your Profit */}
-                <Card className="backdrop-blur-xl bg-card/85 border-border shadow-md">
+                <Card className="bg-card border-border shadow-sm">
                   <CardHeader className="pb-4">
                     <CardTitle className="text-lg font-semibold text-foreground">Cost With Your Profit</CardTitle>
                   </CardHeader>
@@ -749,7 +743,6 @@ export default function Calculator() {
               </div>
             </div>
           </div>
-        </div>
       </div>
 
       {/* Create Invoice Dialog */}

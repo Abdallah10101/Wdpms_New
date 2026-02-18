@@ -14,6 +14,7 @@ import {
   Package,
   Clock,
   History,
+  Copy,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -53,6 +54,7 @@ export default function OrderDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCloning, setIsCloning] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -186,6 +188,43 @@ export default function OrderDetail() {
       });
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleCloneOrder = async () => {
+    if (!order || isCloning) return;
+    setIsCloning(true);
+    try {
+      const { data: newOrder, error } = await supabase
+        .from('orders')
+        .insert({
+          product_name: `${order.product_name} (Copy)`,
+          client_id: order.client_id,
+          collection: order.collection,
+          size: order.size,
+          fabric: order.fabric,
+          supplier: order.supplier,
+          quantity: order.quantity,
+          delivery_date: order.delivery_date,
+          priority: order.priority,
+          current_stage: 'not_started',
+          has_printing: order.has_printing,
+          has_embroidery: order.has_embroidery,
+          has_wash_house: order.has_wash_house,
+          created_by: user?.id,
+        })
+        .select('id')
+        .single();
+
+      if (error) throw error;
+
+      toast({ title: 'Order Duplicated', description: 'A copy of this order has been created.' });
+      navigate(`/orders/${newOrder.id}`);
+    } catch (error) {
+      console.error('Error cloning order:', error);
+      toast({ title: 'Error', description: 'Failed to duplicate order.', variant: 'destructive' });
+    } finally {
+      setIsCloning(false);
     }
   };
 
@@ -395,6 +434,30 @@ export default function OrderDetail() {
                 )}
               </CardContent>
             </Card>
+
+            {/* Clone Order - Admin/Team */}
+            {canEdit && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Copy className="h-5 w-5" />
+                    Duplicate Order
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground mb-3">
+                    Create a copy of this order with the same specifications, starting from the beginning.
+                  </p>
+                  <Button variant="outline" className="w-full" onClick={handleCloneOrder} disabled={isCloning}>
+                    {isCloning ? (
+                      <><Copy className="mr-2 h-4 w-4 animate-spin" />Duplicating...</>
+                    ) : (
+                      <><Copy className="mr-2 h-4 w-4" />Duplicate Order</>
+                    )}
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
 
             {/* Delete Order - Admin Only */}
             {role === 'admin' && (

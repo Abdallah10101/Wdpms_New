@@ -27,8 +27,18 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search, Building2, Mail, Phone, Loader2 } from 'lucide-react';
+import { Plus, Search, Building2, Mail, Phone, Loader2, Pencil, Download } from 'lucide-react';
 import type { Client } from '@/lib/types';
+
+const emptyForm = {
+  name: '',
+  brand_name: '',
+  contact_person: '',
+  contact_email: '',
+  contact_phone: '',
+  address: '',
+  notes: '',
+};
 
 export default function Clients() {
   const navigate = useNavigate();
@@ -40,17 +50,12 @@ export default function Clients() {
   const [searchQuery, setSearchQuery] = useState('');
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [editingClient, setEditingClient] = useState<Client | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
 
   // Form state
-  const [formData, setFormData] = useState({
-    name: '',
-    brand_name: '',
-    contact_person: '',
-    contact_email: '',
-    contact_phone: '',
-    address: '',
-    notes: '',
-  });
+  const [formData, setFormData] = useState(emptyForm);
+  const [editFormData, setEditFormData] = useState(emptyForm);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -112,15 +117,7 @@ export default function Clients() {
       });
 
       setIsDialogOpen(false);
-      setFormData({
-        name: '',
-        brand_name: '',
-        contact_person: '',
-        contact_email: '',
-        contact_phone: '',
-        address: '',
-        notes: '',
-      });
+      setFormData(emptyForm);
       fetchClients();
     } catch (error) {
       console.error('Error creating client:', error);
@@ -132,6 +129,65 @@ export default function Clients() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleUpdateClient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClient) return;
+    setIsSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from('clients')
+        .update({
+          name: editFormData.name,
+          brand_name: editFormData.brand_name || null,
+          contact_person: editFormData.contact_person || null,
+          contact_email: editFormData.contact_email || null,
+          contact_phone: editFormData.contact_phone || null,
+          address: editFormData.address || null,
+          notes: editFormData.notes || null,
+        })
+        .eq('id', editingClient.id);
+
+      if (error) throw error;
+
+      toast({ title: 'Success', description: 'Client updated successfully.' });
+      setIsEditDialogOpen(false);
+      setEditingClient(null);
+      fetchClients();
+    } catch (error) {
+      console.error('Error updating client:', error);
+      toast({ title: 'Error', description: 'Failed to update client.', variant: 'destructive' });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const openEditDialog = (client: Client) => {
+    setEditingClient(client);
+    setEditFormData({
+      name: client.name,
+      brand_name: client.brand_name || '',
+      contact_person: client.contact_person || '',
+      contact_email: client.contact_email || '',
+      contact_phone: client.contact_phone || '',
+      address: client.address || '',
+      notes: client.notes || '',
+    });
+    setIsEditDialogOpen(true);
+  };
+
+  const exportCSV = () => {
+    const headers = ['Name', 'Brand', 'Contact Person', 'Email', 'Phone', 'Address'];
+    const rows = filteredClients.map(c => [
+      c.name, c.brand_name || '', c.contact_person || '', c.contact_email || '', c.contact_phone || '', c.address || ''
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'clients.csv'; a.click();
+    URL.revokeObjectURL(url);
   };
 
   const filteredClients = clients.filter(
@@ -156,8 +212,12 @@ export default function Clients() {
               Manage your clients and their orders
             </p>
           </div>
-          {role === 'admin' && (
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={exportCSV}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+          {role === 'admin' && (<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
@@ -273,7 +333,58 @@ export default function Clients() {
               </DialogContent>
             </Dialog>
           )}
+          </div>
         </div>
+
+        {/* Edit Client Dialog */}
+        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+          <DialogContent className="max-w-md">
+            <form onSubmit={handleUpdateClient}>
+              <DialogHeader>
+                <DialogTitle>Edit Client</DialogTitle>
+                <DialogDescription>Update client information</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="space-y-2">
+                  <Label>Company Name *</Label>
+                  <Input value={editFormData.name} onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Brand Name</Label>
+                  <Input value={editFormData.brand_name} onChange={(e) => setEditFormData({ ...editFormData, brand_name: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Contact Person</Label>
+                  <Input value={editFormData.contact_person} onChange={(e) => setEditFormData({ ...editFormData, contact_person: e.target.value })} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Email</Label>
+                    <Input type="email" value={editFormData.contact_email} onChange={(e) => setEditFormData({ ...editFormData, contact_email: e.target.value })} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Phone</Label>
+                    <Input value={editFormData.contact_phone} onChange={(e) => setEditFormData({ ...editFormData, contact_phone: e.target.value })} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Address</Label>
+                  <Textarea value={editFormData.address} onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })} rows={2} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea value={editFormData.notes} onChange={(e) => setEditFormData({ ...editFormData, notes: e.target.value })} rows={2} />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setIsEditDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Saving...</> : 'Save Changes'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
 
         {/* Search */}
         <div className="relative max-w-sm">
@@ -322,6 +433,7 @@ export default function Clients() {
                     <TableHead>Contact</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
+                    {role === 'admin' && <TableHead className="w-12"></TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -362,6 +474,13 @@ export default function Clients() {
                           '-'
                         )}
                       </TableCell>
+                      {role === 'admin' && (
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button variant="ghost" size="icon" onClick={() => openEditDialog(client)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

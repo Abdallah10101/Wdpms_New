@@ -35,7 +35,7 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search, UserPlus, Mail, Phone, Loader2, Calendar, Instagram, Building2, User, MessageSquare, Globe } from 'lucide-react';
+import { Plus, Search, UserPlus, Mail, Phone, Loader2, Calendar, Instagram, Building2, User, MessageSquare, Globe, Download, LayoutList, Columns3 } from 'lucide-react';
 import type { Lead, LeadStatus, LEAD_STATUS_CONFIG } from '@/lib/types';
 import { FOLLOWERS_RANGE_OPTIONS } from '@/lib/types';
 
@@ -62,6 +62,8 @@ export default function Leads() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
+  const [isConverting, setIsConverting] = useState(false);
 
   const [formData, setFormData] = useState({
     company_name: '',
@@ -195,6 +197,47 @@ export default function Leads() {
     });
   };
 
+  const handleConvertToClient = async (lead: Lead) => {
+    setIsConverting(true);
+    try {
+      const { error } = await supabase.from('clients').insert({
+        name: lead.company_name,
+        brand_name: lead.brand_name || null,
+        contact_person: lead.contact_name || null,
+        contact_email: lead.email || null,
+        contact_phone: lead.phone || null,
+        notes: lead.notes || null,
+        created_by: user?.id,
+      });
+      if (error) throw error;
+
+      // Mark lead as won
+      await (supabase.from('leads' as any) as any).update({ status: 'won' }).eq('id', lead.id);
+
+      toast({ title: 'Client Created!', description: `${lead.company_name} has been converted to a client.` });
+      setIsDetailOpen(false);
+      fetchLeads();
+    } catch (error) {
+      console.error('Error converting lead:', error);
+      toast({ title: 'Error', description: 'Failed to convert lead to client.', variant: 'destructive' });
+    } finally {
+      setIsConverting(false);
+    }
+  };
+
+  const exportCSV = () => {
+    const headers = ['Company', 'Brand', 'Contact', 'Email', 'Phone', 'Status', 'Source', 'Followers', 'Follow-up', 'Notes'];
+    const rows = filteredLeads.map(l => [
+      l.company_name, l.brand_name || '', l.contact_name || '', l.email || '', l.phone || '',
+      l.status, l.source || '', l.followers_range || '', l.next_follow_up || '', l.notes || ''
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'leads.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const getStatusBadge = (status: LeadStatus) => {
     const config = LEAD_STATUSES.find(s => s.value === status);
     return (
@@ -231,7 +274,15 @@ export default function Leads() {
               Track potential clients and follow-ups
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={exportCSV}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+            <Button variant="outline" size="icon" onClick={() => setViewMode(viewMode === 'table' ? 'kanban' : 'table')} title={viewMode === 'table' ? 'Kanban View' : 'Table View'}>
+              {viewMode === 'table' ? <Columns3 className="h-4 w-4" /> : <LayoutList className="h-4 w-4" />}
+            </Button>
+            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -379,6 +430,7 @@ export default function Leads() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
 
         {/* Filters */}
@@ -407,8 +459,46 @@ export default function Leads() {
           </Select>
         </div>
 
+        {/* Kanban View */}
+        {viewMode === 'kanban' && (
+          <div className="overflow-x-auto pb-4">
+            <div className="flex gap-4 min-w-max">
+              {LEAD_STATUSES.map((statusCfg) => {
+                const columnLeads = filteredLeads.filter(l => l.status === statusCfg.value);
+                return (
+                  <div key={statusCfg.value} className="w-60 flex-shrink-0">
+                    <div className={`flex items-center gap-2 rounded-t-lg px-3 py-2 ${statusCfg.color}`}>
+                      <span className="font-medium text-white text-sm">{statusCfg.label}</span>
+                      <span className="ml-auto rounded-full bg-white/20 px-2 py-0.5 text-xs text-white">{columnLeads.length}</span>
+                    </div>
+                    <div className="space-y-2 rounded-b-lg border border-border bg-muted/20 p-2 min-h-24">
+                      {columnLeads.map(lead => (
+                        <button
+                          key={lead.id}
+                          className="w-full text-left rounded-lg border border-border bg-card p-3 hover:shadow-sm transition-shadow"
+                          onClick={() => { setSelectedLead(lead); setIsDetailOpen(true); }}
+                        >
+                          <p className="font-medium text-sm truncate">{lead.company_name}</p>
+                          {lead.brand_name && <p className="text-xs text-muted-foreground truncate">{lead.brand_name}</p>}
+                          {lead.contact_name && <p className="text-xs text-muted-foreground mt-1">{lead.contact_name}</p>}
+                          {lead.next_follow_up && (
+                            <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(lead.next_follow_up).toLocaleDateString()}
+                            </p>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Leads Table */}
-        <Card>
+        {viewMode === 'table' && <Card>
           <CardHeader>
             <CardTitle>All Leads</CardTitle>
             <CardDescription>
@@ -524,7 +614,7 @@ export default function Leads() {
               </Table>
             )}
           </CardContent>
-        </Card>
+        </Card>}
 
         {/* Lead Detail Dialog */}
         <Dialog open={isDetailOpen} onOpenChange={setIsDetailOpen}>
@@ -617,6 +707,22 @@ export default function Leads() {
                 <div className="pt-2 border-t text-xs text-muted-foreground">
                   Created: {new Date(selectedLead.created_at).toLocaleString()}
                 </div>
+
+                {/* Convert to Client */}
+                {role === 'admin' && selectedLead.status !== 'lost' && (
+                  <Button
+                    className="w-full"
+                    variant="outline"
+                    onClick={() => handleConvertToClient(selectedLead)}
+                    disabled={isConverting}
+                  >
+                    {isConverting ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Converting...</>
+                    ) : (
+                      <><Building2 className="mr-2 h-4 w-4" />Convert to Client</>
+                    )}
+                  </Button>
+                )}
               </div>
             )}
           </DialogContent>

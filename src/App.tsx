@@ -20,6 +20,10 @@ import Settings from "./pages/Settings";
 import Calculator from "./pages/Calculator";
 import Invoices from "./pages/Invoices";
 import NotFound from "./pages/NotFound";
+import OverdueOrders from "./pages/OverdueOrders";
+import ResetPassword from "./pages/ResetPassword";
+import Analytics from "./pages/Analytics";
+import AuditLog from "./pages/AuditLog";
 
 const queryClient = new QueryClient();
 
@@ -47,6 +51,10 @@ const App = () => (
             <Route path="/settings" element={<Settings />} />
             <Route path="/calculator" element={<Calculator />} />
             <Route path="/invoices" element={<Invoices />} />
+            <Route path="/overdue" element={<OverdueOrders />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/audit-log" element={<AuditLog />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

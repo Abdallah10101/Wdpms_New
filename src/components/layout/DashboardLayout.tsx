@@ -26,9 +26,20 @@ import {
   Truck,
   Calculator,
   FileText,
+  BarChart3,
+  History,
+  Search,
 } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import { supabase } from '@/integrations/supabase/client';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
 
 interface DashboardLayoutProps {
   children: ReactNode;
@@ -121,18 +132,42 @@ const navItems: NavItem[] = [
     roles: ['admin', 'team'],
   },
   {
+    label: 'Analytics',
+    href: '/analytics',
+    icon: <BarChart3 className="h-5 w-5" />,
+    roles: ['admin', 'team'],
+  },
+  {
+    label: 'Audit Log',
+    href: '/audit-log',
+    icon: <History className="h-5 w-5" />,
+    roles: ['admin'],
+  },
+  {
     label: 'Settings',
     href: '/settings',
     icon: <Settings className="h-5 w-5" />,
-    roles: ['admin'],
+    roles: ['admin', 'team'],
   },
 ];
+
+interface SearchResult {
+  type: 'order' | 'client' | 'lead' | 'invoice';
+  id: string;
+  title: string;
+  subtitle?: string;
+  href: string;
+}
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { profile, role, signOut } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   const filteredNavItems = navItems.filter(
     (item) => role && item.roles.includes(role)
@@ -141,6 +176,27 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const handleSignOut = async () => {
     await signOut();
     navigate('/auth');
+  };
+
+  const handleSearch = async (q: string) => {
+    setSearchQuery(q);
+    if (!q.trim() || q.length < 2) { setSearchResults([]); return; }
+    setIsSearching(true);
+    try {
+      const results: SearchResult[] = [];
+      const [ordersRes, clientsRes, leadsRes, invoicesRes] = await Promise.all([
+        supabase.from('orders').select('id, order_number, product_name').or(`order_number.ilike.%${q}%,product_name.ilike.%${q}%`).limit(5),
+        supabase.from('clients').select('id, name, brand_name').or(`name.ilike.%${q}%,brand_name.ilike.%${q}%`).limit(5),
+        (supabase.from('leads' as any) as any).select('id, company_name, contact_name').or(`company_name.ilike.%${q}%,contact_name.ilike.%${q}%`).limit(5),
+        supabase.from('invoices').select('id, invoice_number, order_name').or(`invoice_number.ilike.%${q}%,order_name.ilike.%${q}%`).limit(5),
+      ]);
+      (ordersRes.data || []).forEach((o: any) => results.push({ type: 'order', id: o.id, title: o.order_number, subtitle: o.product_name, href: `/orders/${o.id}` }));
+      (clientsRes.data || []).forEach((c: any) => results.push({ type: 'client', id: c.id, title: c.brand_name || c.name, subtitle: c.brand_name ? c.name : undefined, href: `/clients/${c.id}` }));
+      (leadsRes.data || []).forEach((l: any) => results.push({ type: 'lead', id: l.id, title: l.company_name, subtitle: l.contact_name, href: '/leads' }));
+      (invoicesRes.data || []).forEach((i: any) => results.push({ type: 'invoice', id: i.id, title: i.invoice_number, subtitle: i.order_name, href: '/invoices' }));
+      setSearchResults(results);
+    } catch (e) { console.error(e); }
+    finally { setIsSearching(false); }
   };
 
   const getInitials = (name: string) => {
@@ -264,14 +320,68 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
           <div className="flex-1" />
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            {/* Notification bell for clients */}
-            {role === 'client' && <NotificationBell />}
+            {/* Global Search */}
+            {role !== 'client' && (
+              <Button variant="ghost" size="icon" onClick={() => { setSearchOpen(true); setSearchQuery(''); setSearchResults([]); }} title="Search (orders, clients, leads, invoices)">
+                <Search className="h-5 w-5" />
+              </Button>
+            )}
+            {/* Notification bell for all roles */}
+            <NotificationBell />
           </div>
         </header>
 
         {/* Page content */}
         <main className="flex-1 overflow-auto p-4 lg:p-6">{children}</main>
       </div>
+
+      {/* Global Search Dialog */}
+      <Dialog open={searchOpen} onOpenChange={setSearchOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Search className="h-4 w-4" />
+              Global Search
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input
+              placeholder="Search orders, clients, leads, invoices..."
+              value={searchQuery}
+              onChange={(e) => handleSearch(e.target.value)}
+              autoFocus
+            />
+            {isSearching && <p className="text-sm text-muted-foreground text-center py-2">Searching...</p>}
+            {!isSearching && searchQuery.length >= 2 && searchResults.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-2">No results found</p>
+            )}
+            {searchResults.length > 0 && (
+              <div className="space-y-1 max-h-80 overflow-y-auto">
+                {searchResults.map((result) => (
+                  <button
+                    key={`${result.type}-${result.id}`}
+                    className="w-full text-left flex items-center gap-3 rounded-lg px-3 py-2 hover:bg-accent transition-colors"
+                    onClick={() => { navigate(result.href); setSearchOpen(false); }}
+                  >
+                    <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                      result.type === 'order' ? 'bg-blue-100 text-blue-700' :
+                      result.type === 'client' ? 'bg-green-100 text-green-700' :
+                      result.type === 'lead' ? 'bg-purple-100 text-purple-700' :
+                      'bg-orange-100 text-orange-700'
+                    }`}>
+                      {result.type}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{result.title}</p>
+                      {result.subtitle && <p className="text-xs text-muted-foreground truncate">{result.subtitle}</p>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

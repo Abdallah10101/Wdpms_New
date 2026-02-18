@@ -14,8 +14,11 @@ import {
   Truck,
   AlertTriangle,
   Plus,
+  Clock,
+  Activity,
 } from 'lucide-react';
 import { DualOverviewKanban } from '@/components/dashboard/DualOverviewKanban';
+import { PRODUCTION_STAGES } from '@/lib/types';
 
 interface DashboardStats {
   totalOrders: number;
@@ -24,6 +27,8 @@ interface DashboardStats {
   overdueOrders: number;
   sampleCount: number;
   bulkCount: number;
+  dueSoonOrders: number;
+  stageCapacity: { label: string; count: number; color: string }[];
 }
 
 export default function Dashboard() {
@@ -55,6 +60,9 @@ export default function Dashboard() {
         .from('orders')
         .select('current_stage, delivery_date, supplier');
 
+      const today = new Date().toISOString().split('T')[0];
+      const sevenDaysLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
       // Fetch clients count (admin only)
       let clientsCount = 0;
       if (role === 'admin') {
@@ -65,19 +73,28 @@ export default function Dashboard() {
       }
 
       // Calculate stats
-      const today = new Date().toISOString().split('T')[0];
-      
       const calculatedStats: DashboardStats = {
         totalOrders: allOrders?.length || 0,
         shipped: allOrders?.filter(o => ['shipping', 'delivered'].includes(o.current_stage)).length || 0,
         totalClients: clientsCount,
         overdueOrders: allOrders?.filter(o => o.delivery_date && o.delivery_date < today && o.current_stage !== 'delivered').length || 0,
         sampleCount: allOrders?.filter(o => o.supplier === 'sample').length || 0,
-        bulkCount: allOrders?.filter(o => 
-          o.supplier !== 'sample' && 
-          o.current_stage !== 'not_started' && 
+        bulkCount: allOrders?.filter(o =>
+          o.supplier !== 'sample' &&
+          o.current_stage !== 'not_started' &&
           o.current_stage !== 'sample'
         ).length || 0,
+        dueSoonOrders: allOrders?.filter(o =>
+          o.delivery_date && o.delivery_date >= today && o.delivery_date <= sevenDaysLater && o.current_stage !== 'delivered'
+        ).length || 0,
+        stageCapacity: PRODUCTION_STAGES
+          .filter(s => s.value !== 'delivered' && s.value !== 'not_started')
+          .map(stage => ({
+            label: stage.label,
+            count: allOrders?.filter(o => o.current_stage === stage.value).length || 0,
+            color: stage.color,
+          }))
+          .filter(s => s.count > 0),
       };
 
       setStats(calculatedStats);
@@ -174,7 +191,7 @@ export default function Dashboard() {
 
         {/* Secondary Stats */}
         {role === 'admin' && (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Total Clients</CardTitle>
@@ -194,7 +211,7 @@ export default function Dashboard() {
                 <CardTitle className="text-sm font-medium">Overdue Orders</CardTitle>
                 <AlertTriangle className={`h-4 w-4 ${stats?.overdueOrders ? 'text-destructive' : 'text-muted-foreground'}`} />
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex items-end justify-between gap-2">
                 {isLoading ? (
                   <Skeleton className="h-8 w-20" />
                 ) : (
@@ -202,9 +219,56 @@ export default function Dashboard() {
                     {stats?.overdueOrders || 0}
                   </div>
                 )}
+                {!isLoading && (stats?.overdueOrders ?? 0) > 0 && (
+                  <Button variant="outline" size="sm" asChild className="h-7 shrink-0 text-xs">
+                    <Link to="/overdue">View All</Link>
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className={stats?.dueSoonOrders ? 'border-yellow-500/50' : ''}>
+              <CardHeader className="flex flex-row items-center justify-between pb-2">
+                <CardTitle className="text-sm font-medium">Due This Week</CardTitle>
+                <Clock className={`h-4 w-4 ${stats?.dueSoonOrders ? 'text-yellow-500' : 'text-muted-foreground'}`} />
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-8 w-20" />
+                ) : (
+                  <div className={`text-2xl font-bold ${stats?.dueSoonOrders ? 'text-yellow-600' : ''}`}>
+                    {stats?.dueSoonOrders || 0}
+                  </div>
+                )}
+                {!isLoading && (stats?.dueSoonOrders ?? 0) > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">Due in next 7 days</p>
+                )}
               </CardContent>
             </Card>
           </div>
+        )}
+
+        {/* Production Capacity View */}
+        {!isLoading && stats?.stageCapacity && stats.stageCapacity.length > 0 && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Production Capacity
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                {stats.stageCapacity.map((stage) => (
+                  <div key={stage.label} className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1">
+                    <div className={`h-2 w-2 rounded-full ${stage.color}`} />
+                    <span className="text-sm font-medium">{stage.count}</span>
+                    <span className="text-xs text-muted-foreground">{stage.label}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Dual Overview Kanbans (Bulk & Samples) */}

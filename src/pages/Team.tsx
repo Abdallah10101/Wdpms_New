@@ -27,7 +27,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Users, Mail, Loader2, Copy, Check } from 'lucide-react';
+import { Plus, Users, Mail, Loader2, Copy, Check, ShieldOff, ShieldCheck } from 'lucide-react';
 import type { Profile, AppRole } from '@/lib/types';
 
 interface TeamMember extends Profile {
@@ -44,6 +44,8 @@ export default function Team() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [suspendedUsers, setSuspendedUsers] = useState<Set<string>>(new Set());
+  const [suspendingUser, setSuspendingUser] = useState<string | null>(null);
 
   // New user form state
   const [newEmail, setNewEmail] = useState('');
@@ -218,6 +220,37 @@ export default function Team() {
         title: 'Copied!',
         description: 'Credentials copied to clipboard.',
       });
+    }
+  };
+
+  const handleToggleSuspend = async (member: TeamMember) => {
+    const isSuspended = suspendedUsers.has(member.user_id);
+    setSuspendingUser(member.user_id);
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-user', {
+        body: { action: isSuspended ? 'unban' : 'ban', userId: member.user_id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setSuspendedUsers(prev => {
+        const next = new Set(prev);
+        if (isSuspended) next.delete(member.user_id);
+        else next.add(member.user_id);
+        return next;
+      });
+
+      toast({
+        title: isSuspended ? 'User Reactivated' : 'User Suspended',
+        description: isSuspended
+          ? `${member.full_name} can now log in again.`
+          : `${member.full_name} has been suspended and cannot log in.`,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to update user status.';
+      toast({ title: 'Error', description: message, variant: 'destructive' });
+    } finally {
+      setSuspendingUser(null);
     }
   };
 
@@ -441,12 +474,13 @@ export default function Team() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-3">
                       <Select
                         value={member.role || 'none'}
                         onValueChange={(value) =>
                           handleAssignRole(member.user_id, value as AppRole)
                         }
+                        disabled={suspendedUsers.has(member.user_id)}
                       >
                         <SelectTrigger className="w-32">
                           <SelectValue placeholder="Set role" />
@@ -457,6 +491,26 @@ export default function Team() {
                           <SelectItem value="client">Client</SelectItem>
                         </SelectContent>
                       </Select>
+                      {member.user_id !== user?.id && (
+                        <Button
+                          variant={suspendedUsers.has(member.user_id) ? 'default' : 'outline'}
+                          size="sm"
+                          onClick={() => handleToggleSuspend(member)}
+                          disabled={suspendingUser === member.user_id}
+                          title={suspendedUsers.has(member.user_id) ? 'Reactivate user' : 'Suspend user'}
+                        >
+                          {suspendingUser === member.user_id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : suspendedUsers.has(member.user_id) ? (
+                            <><ShieldCheck className="h-4 w-4 mr-1" />Reactivate</>
+                          ) : (
+                            <><ShieldOff className="h-4 w-4 mr-1" />Suspend</>
+                          )}
+                        </Button>
+                      )}
+                      {suspendedUsers.has(member.user_id) && (
+                        <Badge className="bg-red-100 text-red-700 text-xs">Suspended</Badge>
+                      )}
                     </div>
                   </div>
                 ))}

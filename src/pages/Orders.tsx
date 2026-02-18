@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Search, ArrowLeft, Package } from 'lucide-react';
+import { Search, ArrowLeft, Package, Download } from 'lucide-react';
 import { format, startOfMonth, endOfMonth, isSameMonth } from 'date-fns';
 import type { Order, Client } from '@/lib/types';
 import { ClientCard } from '@/components/orders/ClientCard';
@@ -99,6 +99,22 @@ export default function Orders() {
     setLogoUploadClient(client);
   };
 
+  const exportOrdersCSV = () => {
+    const allOrders = orders;
+    if (allOrders.length === 0) return;
+    const headers = ['Order #', 'Product', 'Collection', 'Stage', 'Priority', 'Quantity', 'Delivery Date', 'Client'];
+    const rows = allOrders.map(o => [
+      o.order_number, o.product_name, o.collection || '', o.current_stage,
+      o.priority, String(o.quantity), o.delivery_date || '',
+      (o.client as any)?.brand_name || (o.client as any)?.name || ''
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'orders.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleBackClick = () => {
     if (selectedMonth) {
       setSelectedMonth(null);
@@ -160,6 +176,12 @@ export default function Orders() {
               </p>
             </div>
           </div>
+          {orders.length > 0 && (
+            <Button variant="outline" size="sm" onClick={exportOrdersCSV}>
+              <Download className="mr-2 h-4 w-4" />
+              Export CSV
+            </Button>
+          )}
         </div>
 
         {/* Live Activity Feed - Show when client is selected */}
