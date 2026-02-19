@@ -74,6 +74,7 @@ interface InvoiceViewerProps {
   onOpenChange: (open: boolean) => void;
   isClientView?: boolean;
   onPrint?: () => void;
+  currency?: string;
 }
 
 const STATUS_COLORS: Record<InvoiceStatus, string> = {
@@ -99,6 +100,7 @@ export function InvoiceViewer({
   open,
   onOpenChange,
   isClientView = false,
+  currency = 'EUR',
 }: InvoiceViewerProps) {
   const [items, setItems] = useState<InvoiceItem[]>([]);
 
@@ -110,7 +112,7 @@ export function InvoiceViewer({
 
   const fetchItems = async () => {
     if (!invoice) return;
-    
+
     const { data, error } = await supabase
       .from('invoice_items')
       .select('*')
@@ -124,7 +126,18 @@ export function InvoiceViewer({
 
   if (!invoice) return null;
 
-  const formatEUR = (value: number) => `€${value.toFixed(2)}`;
+  const formatAmount = (value: number): string => {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(value);
+    } catch {
+      return `${currency} ${value.toFixed(2)}`;
+    }
+  };
   
   // Calculate totals from items
   const subtotal = items.length > 0 
@@ -155,15 +168,15 @@ export function InvoiceViewer({
                 </div>
               ` : ''}
             </td>
-            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right; width: 100px; vertical-align: top;">${item.unit_price.toFixed(2)}</td>
-            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right; width: 120px; vertical-align: top; font-weight: 500;">${item.amount.toFixed(2)}</td>
+            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right; width: 100px; vertical-align: top;">${formatAmount(item.unit_price)}</td>
+            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right; width: 120px; vertical-align: top; font-weight: 500;">${formatAmount(item.amount)}</td>
           </tr>
         `).join('')
       : `<tr>
           <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4;">${invoice.quantity}</td>
           <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4;">${orderName}</td>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${(invoice.wholesale_price).toFixed(2)}</td>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${(invoice.wholesale_price * invoice.quantity).toFixed(2)}</td>
+          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${formatAmount(invoice.wholesale_price)}</td>
+          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${formatAmount(invoice.wholesale_price * invoice.quantity)}</td>
         </tr>`;
 
     const termsHtml = invoice.terms_and_conditions 
@@ -268,7 +281,7 @@ export function InvoiceViewer({
           <div class="total-box">
             <div class="total-row grand-total">
               <span>Total</span>
-              <span>${formatEUR(subtotal)}</span>
+              <span>${formatAmount(subtotal)}</span>
             </div>
           </div>
         </div>
@@ -373,22 +386,22 @@ export function InvoiceViewer({
                           </div>
                         )}
                       </td>
-                      <td className="p-3 text-right align-top">{formatEUR(item.unit_price)}</td>
-                      <td className="p-3 text-right align-top font-medium">{formatEUR(item.amount)}</td>
+                      <td className="p-3 text-right align-top">{formatAmount(item.unit_price)}</td>
+                      <td className="p-3 text-right align-top font-medium">{formatAmount(item.amount)}</td>
                     </tr>
                   )) : (
                     <tr className="border-t">
                       <td className="p-3">{invoice.quantity}</td>
                       <td className="p-3">{invoice.order_name}</td>
-                      <td className="p-3 text-right">{formatEUR(invoice.wholesale_price)}</td>
-                      <td className="p-3 text-right font-medium">{formatEUR(invoice.wholesale_price * invoice.quantity)}</td>
+                      <td className="p-3 text-right">{formatAmount(invoice.wholesale_price)}</td>
+                      <td className="p-3 text-right font-medium">{formatAmount(invoice.wholesale_price * invoice.quantity)}</td>
                     </tr>
                   )}
                 </tbody>
                 <tfoot>
                   <tr className="border-t bg-primary/5">
                     <td colSpan={3} className="p-3 text-right font-semibold">Total</td>
-                    <td className="p-3 text-right font-bold text-lg">{formatEUR(subtotal)}</td>
+                    <td className="p-3 text-right font-bold text-lg">{formatAmount(subtotal)}</td>
                   </tr>
                 </tfoot>
               </table>
@@ -400,12 +413,12 @@ export function InvoiceViewer({
             <div className="p-4 bg-green-50 rounded-lg">
               <div className="flex justify-between">
                 <span className="text-green-800">Amount Paid</span>
-                <span className="font-semibold text-green-800">{formatEUR(invoice.amount_paid)}</span>
+                <span className="font-semibold text-green-800">{formatAmount(invoice.amount_paid)}</span>
               </div>
               <div className="flex justify-between mt-1">
                 <span className="text-green-800">Remaining</span>
                 <span className="font-semibold text-green-800">
-                  {formatEUR(subtotal - invoice.amount_paid)}
+                  {formatAmount(subtotal - invoice.amount_paid)}
                 </span>
               </div>
             </div>

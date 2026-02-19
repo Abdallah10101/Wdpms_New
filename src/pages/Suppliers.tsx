@@ -263,15 +263,15 @@ export default function Suppliers() {
                 Add Supplier
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <form onSubmit={handleCreateOrUpdateSupplier}>
-                <DialogHeader>
+            <DialogContent className="max-w-lg flex flex-col max-h-[90vh]">
+              <form onSubmit={handleCreateOrUpdateSupplier} className="flex flex-col overflow-hidden flex-1">
+                <DialogHeader className="flex-shrink-0 px-6 pt-6">
                   <DialogTitle>{editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}</DialogTitle>
                   <DialogDescription>
                     {editingSupplier ? 'Update supplier details' : 'Add a new supplier to your directory'}
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
+                <div className="grid gap-4 py-4 px-6 overflow-y-auto flex-1">
                   <div className="space-y-2">
                     <Label htmlFor="name">Company Name *</Label>
                     <Input
@@ -395,7 +395,7 @@ export default function Suppliers() {
                     />
                   </div>
                 </div>
-                <DialogFooter>
+                <DialogFooter className="flex-shrink-0 px-6 pb-6">
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancel
                   </Button>

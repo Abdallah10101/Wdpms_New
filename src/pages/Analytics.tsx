@@ -26,11 +26,11 @@ export default function Analytics() {
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/auth');
-    if (!authLoading && role === 'client') navigate('/dashboard');
+    if (!authLoading && (role === 'client' || role === 'team')) navigate('/dashboard');
   }, [user, authLoading, role, navigate]);
 
   useEffect(() => {
-    if (user && role && role !== 'client') {
+    if (user && role === 'admin') {
       fetchAnalyticsData();
     }
   }, [user, role]);

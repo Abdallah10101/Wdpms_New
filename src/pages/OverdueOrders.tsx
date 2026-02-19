@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,6 +48,8 @@ const PRIORITY_COLORS: Record<string, string> = {
 export default function OverdueOrders() {
   const navigate = useNavigate();
   const { user, role, isLoading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams();
+  const isDueSoon = searchParams.get('mode') === 'due-soon';
   const [orders, setOrders] = useState<OverdueOrder[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -57,19 +59,24 @@ export default function OverdueOrders() {
   }, [user, authLoading, role, navigate]);
 
   useEffect(() => {
-    if (user && role) fetchOverdueOrders();
-  }, [user, role]);
+    if (user && role) fetchOrders();
+  }, [user, role, isDueSoon]);
 
-  const fetchOverdueOrders = async () => {
+  const fetchOrders = async () => {
     try {
       const today = new Date().toISOString().split('T')[0];
-      const { data, error } = await supabase
+      const in7Days = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+      const query = supabase
         .from('orders')
         .select('id, order_number, product_name, client_id, delivery_date, current_stage, priority, supplier, quantity, collection, clients(name, brand_name)')
-        .lt('delivery_date', today)
         .neq('current_stage', 'delivered')
         .not('delivery_date', 'is', null)
         .order('delivery_date', { ascending: true });
+
+      const { data, error } = await (isDueSoon
+        ? query.gte('delivery_date', today).lte('delivery_date', in7Days)
+        : query.lt('delivery_date', today));
 
       if (error) throw error;
 
@@ -79,7 +86,7 @@ export default function OverdueOrders() {
       }));
       setOrders(mapped);
     } catch (err) {
-      console.error('Error fetching overdue orders:', err);
+      console.error('Error fetching orders:', err);
     } finally {
       setIsLoading(false);
     }
@@ -87,6 +94,9 @@ export default function OverdueOrders() {
 
   const daysOverdue = (deliveryDate: string) =>
     differenceInDays(new Date(), new Date(deliveryDate));
+
+  const daysUntilDue = (deliveryDate: string) =>
+    differenceInDays(new Date(deliveryDate), new Date());
 
   const clientName = (order: OverdueOrder) =>
     order.client?.brand_name || order.client?.name || '—';
@@ -109,11 +119,15 @@ export default function OverdueOrders() {
             </Button>
             <div>
               <h1 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
-                <AlertTriangle className="h-6 w-6 text-destructive" />
-                Overdue Orders
+                {isDueSoon
+                  ? <Clock className="h-6 w-6 text-yellow-500" />
+                  : <AlertTriangle className="h-6 w-6 text-destructive" />}
+                {isDueSoon ? 'Due This Week' : 'Overdue Orders'}
               </h1>
               <p className="text-muted-foreground">
-                {isLoading ? '—' : `${orders.length} order${orders.length !== 1 ? 's' : ''} past their delivery date`}
+                {isLoading ? '—' : isDueSoon
+                  ? `${orders.length} order${orders.length !== 1 ? 's' : ''} due in the next 7 days`
+                  : `${orders.length} order${orders.length !== 1 ? 's' : ''} past their delivery date`}
               </p>
             </div>
           </div>
@@ -122,7 +136,7 @@ export default function OverdueOrders() {
         {/* Table Card */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-base">All Overdue Orders</CardTitle>
+            <CardTitle className="text-base">{isDueSoon ? 'Orders Due This Week' : 'All Overdue Orders'}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
@@ -134,7 +148,7 @@ export default function OverdueOrders() {
             ) : orders.length === 0 ? (
               <div className="flex flex-col items-center gap-2 py-16 text-center text-muted-foreground">
                 <Clock className="h-10 w-10 opacity-30" />
-                <p className="font-medium">No overdue orders</p>
+                <p className="font-medium">{isDueSoon ? 'No orders due this week' : 'No overdue orders'}</p>
                 <p className="text-sm">All orders are on track.</p>
               </div>
             ) : (
@@ -147,7 +161,7 @@ export default function OverdueOrders() {
                       <th className="px-4 py-3">Client</th>
                       <th className="px-4 py-3">Type</th>
                       <th className="px-4 py-3">Due Date</th>
-                      <th className="px-4 py-3">Days Overdue</th>
+                      <th className="px-4 py-3">{isDueSoon ? 'Days Until Due' : 'Days Overdue'}</th>
                       <th className="px-4 py-3">Stage</th>
                       <th className="px-4 py-3">Priority</th>
                       <th className="px-4 py-3">Qty</th>
@@ -156,7 +170,7 @@ export default function OverdueOrders() {
                   </thead>
                   <tbody className="divide-y">
                     {orders.map((order) => {
-                      const days = daysOverdue(order.delivery_date);
+                      const days = isDueSoon ? daysUntilDue(order.delivery_date) : daysOverdue(order.delivery_date);
                       return (
                         <tr
                           key={order.id}
@@ -181,10 +195,17 @@ export default function OverdueOrders() {
                             {format(new Date(order.delivery_date), 'dd MMM yyyy')}
                           </td>
                           <td className="px-4 py-3">
-                            <span className="inline-flex items-center gap-1 font-semibold text-destructive">
-                              <AlertTriangle className="h-3 w-3" />
-                              {days}d
-                            </span>
+                            {isDueSoon ? (
+                              <span className="inline-flex items-center gap-1 font-semibold text-yellow-600">
+                                <Clock className="h-3 w-3" />
+                                {daysUntilDue(order.delivery_date)}d
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 font-semibold text-destructive">
+                                <AlertTriangle className="h-3 w-3" />
+                                {days}d
+                              </span>
+                            )}
                           </td>
                           <td className="px-4 py-3">
                             <Badge variant="secondary" className="text-xs">

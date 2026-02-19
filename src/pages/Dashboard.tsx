@@ -233,13 +233,20 @@ export default function Dashboard() {
                 <Clock className={`h-4 w-4 ${stats?.dueSoonOrders ? 'text-yellow-500' : 'text-muted-foreground'}`} />
               </CardHeader>
               <CardContent>
-                {isLoading ? (
-                  <Skeleton className="h-8 w-20" />
-                ) : (
-                  <div className={`text-2xl font-bold ${stats?.dueSoonOrders ? 'text-yellow-600' : ''}`}>
-                    {stats?.dueSoonOrders || 0}
-                  </div>
-                )}
+                <div className="flex items-end justify-between gap-2">
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-20" />
+                  ) : (
+                    <div className={`text-2xl font-bold ${stats?.dueSoonOrders ? 'text-yellow-600' : ''}`}>
+                      {stats?.dueSoonOrders || 0}
+                    </div>
+                  )}
+                  {!isLoading && (stats?.dueSoonOrders ?? 0) > 0 && (
+                    <Button variant="outline" size="sm" asChild className="h-7 shrink-0 text-xs">
+                      <Link to="/overdue?mode=due-soon">View All</Link>
+                    </Button>
+                  )}
+                </div>
                 {!isLoading && (stats?.dueSoonOrders ?? 0) > 0 && (
                   <p className="text-xs text-muted-foreground mt-1">Due in next 7 days</p>
                 )}

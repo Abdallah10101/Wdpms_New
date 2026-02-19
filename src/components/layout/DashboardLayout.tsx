@@ -135,7 +135,7 @@ const navItems: NavItem[] = [
     label: 'Analytics',
     href: '/analytics',
     icon: <BarChart3 className="h-5 w-5" />,
-    roles: ['admin', 'team'],
+    roles: ['admin'],
   },
   {
     label: 'Audit Log',

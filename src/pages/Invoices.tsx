@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import DashboardLayout from '@/components/layout/DashboardLayout';
@@ -26,9 +26,22 @@ import {
   Plus,
   Download,
   DollarSign,
+  RefreshCw,
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
+
+const FALLBACK_CURRENCIES = ['EUR', 'USD', 'GBP', 'TRY', 'AED', 'SAR', 'JPY', 'CNY'];
+
+const getCurrencyLabel = (code: string): string => {
+  try {
+    const symbol = new Intl.NumberFormat('en-US', { style: 'currency', currency: code })
+      .formatToParts(0).find((p) => p.type === 'currency')?.value ?? code;
+    return symbol === code ? code : `${symbol} ${code}`;
+  } catch {
+    return code;
+  }
+};
 
 const STATUS_COLORS: Record<InvoiceStatus, string> = {
   draft: 'bg-gray-100 text-gray-800',
@@ -64,6 +77,54 @@ export default function Invoices() {
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+
+  // Currency
+  const [displayCurrency, setDisplayCurrency] = useState('EUR');
+  const [exchangeRate, setExchangeRate] = useState(1);
+  const [currencies, setCurrencies] = useState<string[]>(FALLBACK_CURRENCIES);
+  const [ratesFromEUR, setRatesFromEUR] = useState<Record<string, number>>({});
+  const [rateLoading, setRateLoading] = useState(false);
+  const [rateLastUpdated, setRateLastUpdated] = useState<string | null>(null);
+
+  const fetchRates = useCallback(async () => {
+    setRateLoading(true);
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/EUR');
+      const data = await res.json();
+      if (data.result === 'success' && data.rates) {
+        setRatesFromEUR(data.rates);
+        setCurrencies(['EUR', ...Object.keys(data.rates).filter((c) => c !== 'EUR').sort()]);
+        setRateLastUpdated(new Date().toLocaleTimeString());
+      }
+    } catch {
+      // keep fallback
+    } finally {
+      setRateLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { fetchRates(); }, [fetchRates]);
+
+  useEffect(() => {
+    if (Object.keys(ratesFromEUR).length === 0) return;
+    if (displayCurrency === 'EUR') { setExchangeRate(1); return; }
+    if (ratesFromEUR[displayCurrency]) {
+      setExchangeRate(+(ratesFromEUR[displayCurrency]).toFixed(4));
+    }
+  }, [displayCurrency, ratesFromEUR]);
+
+  const formatAmount = (value: number): string => {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: displayCurrency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(value);
+    } catch {
+      return `${displayCurrency} ${value.toFixed(2)}`;
+    }
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -164,7 +225,7 @@ export default function Invoices() {
         .eq('id', paymentInvoice.id);
 
       if (error) throw error;
-      toast({ title: 'Payment Recorded', description: `₺${paid.toLocaleString()} recorded.` });
+      toast({ title: 'Payment Recorded', description: `${formatAmount(paid)} recorded.` });
       setPaymentDialogOpen(false);
       setPaymentInvoice(null);
       setPaymentAmount('');
@@ -308,7 +369,7 @@ export default function Invoices() {
         </div>
 
         {/* Filters */}
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4 items-center">
           <div className="relative flex-1 max-w-sm">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -332,6 +393,33 @@ export default function Invoices() {
               <SelectItem value="overdue">Overdue</SelectItem>
             </SelectContent>
           </Select>
+          <div className="flex items-center gap-2 ml-auto">
+            <div className="flex flex-col items-end">
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground">Display Currency</span>
+                <button
+                  type="button"
+                  onClick={fetchRates}
+                  disabled={rateLoading}
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  title="Refresh live rates"
+                >
+                  <RefreshCw className={`h-3 w-3 ${rateLoading ? 'animate-spin' : ''}`} />
+                  {rateLastUpdated ? `Updated ${rateLastUpdated}` : 'Live rates'}
+                </button>
+              </div>
+              <Select value={displayCurrency} onValueChange={setDisplayCurrency}>
+                <SelectTrigger className="w-36 h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-[260px]">
+                  {currencies.map((c) => (
+                    <SelectItem key={c} value={c}>{getCurrencyLabel(c)}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
         </div>
 
         {/* Invoice Table */}
@@ -380,7 +468,7 @@ export default function Invoices() {
                       </TableCell>
                       <TableCell>
                         <span className="font-semibold">
-                          ₺{(invoice.wholesale_price * invoice.quantity).toLocaleString()}
+                          {formatAmount(invoice.wholesale_price * invoice.quantity)}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -454,6 +542,7 @@ export default function Invoices() {
         open={viewerOpen}
         onOpenChange={setViewerOpen}
         isClientView={false}
+        currency={displayCurrency}
       />
 
       {/* Create Invoice Dialog */}
@@ -461,6 +550,8 @@ export default function Invoices() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onSuccess={fetchInvoices}
+        currency={displayCurrency}
+        exchangeRate={exchangeRate}
       />
 
       {/* Record Payment Dialog */}
@@ -470,13 +561,13 @@ export default function Invoices() {
             <DialogTitle>Record Payment</DialogTitle>
             <DialogDescription>
               {paymentInvoice && (
-                <>Invoice {paymentInvoice.invoice_number} — Total: ₺{(paymentInvoice.wholesale_price * paymentInvoice.quantity).toLocaleString()}</>
+                <>Invoice {paymentInvoice.invoice_number} — Total: {formatAmount(paymentInvoice.wholesale_price * paymentInvoice.quantity)}</>
               )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <Label>Amount Paid (₺)</Label>
+              <Label>Amount Paid ({displayCurrency})</Label>
               <Input
                 type="number"
                 placeholder="0.00"
