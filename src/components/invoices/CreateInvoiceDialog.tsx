@@ -76,6 +76,13 @@ const DEFAULT_INCLUSIONS = [
   'Labels',
 ];
 
+const getCurrencySymbol = (currency: string) => {
+  const symbols: Record<string, string> = {
+    EUR: '€', USD: '$', GBP: '£', TRY: '₺', AED: 'AED ', SAR: 'SAR ', JPY: '¥', CNY: '¥',
+  };
+  return symbols[currency] ?? (currency + ' ');
+};
+
 const getDefaultTerms = (currency: string) => `Terms and Conditions:
 • This invoice total does not include taxes that may be applicable based on your location
 • The prices above are in (${currency})
@@ -295,7 +302,7 @@ export function CreateInvoiceDialog({
       setDueDate(undefined);
       setClientNotes('');
       setInternalNotes('');
-      setTermsAndConditions(DEFAULT_TERMS);
+      setTermsAndConditions(getDefaultTerms(propCurrency));
       setLineItems([{ orderId: null, productName: '', description: '', inclusions: [], quantity: 1, unitPrice: 0 }]);
     } catch (error: any) {
       console.error('Error creating invoice:', error);
@@ -495,7 +502,7 @@ export function CreateInvoiceDialog({
                     <div className="space-y-2">
                       <Label className="text-xs">Amount</Label>
                       <div className="h-10 px-3 py-2 rounded-md border bg-muted flex items-center font-medium">
-                        €{(item.quantity * item.unitPrice).toFixed(2)}
+                        {getCurrencySymbol(propCurrency)}{(item.quantity * item.unitPrice).toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -531,11 +538,11 @@ export function CreateInvoiceDialog({
               <div className="p-4 bg-primary/5 rounded-lg space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal</span>
-                  <span className="font-medium">€{calculateSubtotal().toFixed(2)}</span>
+                  <span className="font-medium">{getCurrencySymbol(propCurrency)}{calculateSubtotal().toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-lg border-t pt-2">
                   <span>Total</span>
-                  <span>€{calculateSubtotal().toFixed(2)}</span>
+                  <span>{getCurrencySymbol(propCurrency)}{calculateSubtotal().toFixed(2)}</span>
                 </div>
               </div>
             </div>

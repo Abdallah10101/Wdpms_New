@@ -35,27 +35,39 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Only admins can manage users' }), { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    const { action, userId } = await req.json()
+    const { action, userId, userIds } = await req.json()
 
-    if (!action || !userId) {
-      return new Response(JSON.stringify({ error: 'Missing action or userId' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    if (!action) {
+      return new Response(JSON.stringify({ error: 'Missing action' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     if (action === 'ban') {
-      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '876000h' })
-      if (error) return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      if (!userId) return new Response(JSON.stringify({ error: 'Missing userId' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const { error: banError } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: '876000h' })
+      if (banError) return new Response(JSON.stringify({ error: banError.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      // Insert a force_logout notification — the client subscribes to this via Realtime and signs out immediately
+      try {
+        await supabaseAdmin.from('notifications').insert({
+          user_id: userId,
+          type: 'force_logout',
+          title: 'Account Suspended',
+          message: 'Your account has been suspended by an administrator.',
+          is_read: true,
+        })
+      } catch (_notifError) {
+        // Non-critical: user is banned regardless; notification is best-effort
+      }
       return new Response(JSON.stringify({ message: 'User suspended' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     if (action === 'unban') {
+      if (!userId) return new Response(JSON.stringify({ error: 'Missing userId' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, { ban_duration: 'none' })
       if (error) return new Response(JSON.stringify({ error: error.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       return new Response(JSON.stringify({ message: 'User reactivated' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     if (action === 'get_statuses') {
-      const { userIds } = await req.json().catch(() => ({ userIds: [] }))
-      // Return ban status for provided user IDs
       const statuses: Record<string, boolean> = {}
       for (const uid of (userIds || [])) {
         const { data } = await supabaseAdmin.auth.admin.getUserById(uid)

@@ -55,6 +55,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Listen for force_logout notifications (inserted by manage-user edge function when admin suspends)
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel(`force_logout:${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          if ((payload.new as any)?.type === 'force_logout') {
+            setProfile(null);
+            setRole(null);
+            setUser(null);
+            setSession(null);
+            supabase.auth.signOut().catch(() => {});
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(

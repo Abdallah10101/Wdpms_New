@@ -48,6 +48,7 @@ export function NotificationBell() {
         },
         (payload) => {
           const newNotification = payload.new as Notification;
+          if (newNotification.type === 'force_logout') return;
           setNotifications(prev => [newNotification, ...prev]);
         }
       )
@@ -67,7 +68,7 @@ export function NotificationBell() {
         .limit(20);
 
       if (error) throw error;
-      setNotifications((data || []) as Notification[]);
+      setNotifications((data || []).filter((n: any) => n.type !== 'force_logout') as Notification[]);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     } finally {

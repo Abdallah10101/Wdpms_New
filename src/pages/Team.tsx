@@ -27,8 +27,15 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Users, Mail, Loader2, Copy, Check, ShieldOff, ShieldCheck } from 'lucide-react';
+import { Plus, Users, Mail, Loader2, Copy, Check, ShieldOff, ShieldCheck, RefreshCw, KeyRound } from 'lucide-react';
 import type { Profile, AppRole } from '@/lib/types';
+
+const OTP_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function generateOTP(): string {
+  return Array.from({ length: 8 }, () =>
+    OTP_CHARS[Math.floor(Math.random() * OTP_CHARS.length)]
+  ).join('');
+}
 
 interface TeamMember extends Profile {
   role?: AppRole;
@@ -36,22 +43,22 @@ interface TeamMember extends Profile {
 
 export default function Team() {
   const navigate = useNavigate();
-  const { user, role, isLoading: authLoading } = useAuth();
+  const { user, role, profile, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copiedField, setCopiedField] = useState<'email' | 'password' | 'both' | null>(null);
   const [suspendedUsers, setSuspendedUsers] = useState<Set<string>>(new Set());
   const [suspendingUser, setSuspendingUser] = useState<string | null>(null);
 
   // New user form state
   const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
+  const [otp, setOtp] = useState(() => generateOTP());
   const [newFullName, setNewFullName] = useState('');
-  const [newRole, setNewRole] = useState<AppRole>('client');
+  const [newRole, setNewRole] = useState<'team' | 'client'>('team');
   const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
 
   useEffect(() => {
@@ -93,6 +100,26 @@ export default function Team() {
       });
 
       setMembers(membersWithRoles);
+
+      // Load actual ban statuses from auth backend
+      const memberIds = membersWithRoles.map(m => m.user_id).filter(Boolean);
+      if (memberIds.length > 0) {
+        try {
+          const { data: statusData } = await supabase.functions.invoke('manage-user', {
+            body: { action: 'get_statuses', userIds: memberIds },
+          });
+          if (statusData?.statuses) {
+            const suspended = new Set<string>(
+              Object.entries(statusData.statuses as Record<string, boolean>)
+                .filter(([, isBanned]) => isBanned)
+                .map(([uid]) => uid)
+            );
+            setSuspendedUsers(suspended);
+          }
+        } catch (e) {
+          console.error('Failed to fetch ban statuses:', e);
+        }
+      }
     } catch (error) {
       console.error('Error fetching team members:', error);
       toast({
@@ -105,73 +132,64 @@ export default function Team() {
     }
   };
 
+  const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
+    try {
+      await (supabase.from as any)('activity_log').insert({
+        action_type: actionType,
+        actor_id: user?.id,
+        actor_name: profile?.full_name || user?.email || 'Unknown',
+        target_name: targetName,
+        details,
+      });
+    } catch (e) {
+      console.error('Failed to log activity:', e);
+    }
+  };
+
   const handleCreateUser = async () => {
-    if (!newEmail || !newPassword || !newFullName) {
-      toast({
-        title: 'Missing fields',
-        description: 'Please fill in all fields.',
-        variant: 'destructive',
-      });
+    if (!newEmail || !newFullName) {
+      toast({ title: 'Missing fields', description: 'Please fill in email and full name.', variant: 'destructive' });
       return;
     }
-
-    if (newPassword.length < 8) {
-      toast({
-        title: 'Password too short',
-        description: 'Password must be at least 8 characters.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     setIsSubmitting(true);
-
+    setCreatedCredentials(null);
     try {
       const { data, error } = await supabase.functions.invoke('create-user', {
-        body: {
-          email: newEmail,
-          password: newPassword,
-          fullName: newFullName,
-          role: newRole,
-        },
+        body: { email: newEmail, password: otp, fullName: newFullName, role: newRole },
       });
 
-      if (error) throw error;
-
-      if (data.error) {
-        throw new Error(data.error);
+      if (error) {
+        let message = 'Failed to create user.';
+        try {
+          const body = await (error as any).context?.json?.();
+          message = body?.error || error.message || message;
+        } catch {
+          message = error.message || message;
+        }
+        throw new Error(message);
       }
+      if (data?.error) throw new Error(data.error);
 
-      // Store credentials for display
-      setCreatedCredentials({ email: newEmail, password: newPassword });
+      setCreatedCredentials({ email: newEmail, password: otp });
+      toast({ title: 'User created', description: `${newEmail} has been added as ${newRole}.` });
+      logActivity('user_created', newFullName, { email: newEmail, role: newRole });
 
-      toast({
-        title: 'User Created!',
-        description: `${newFullName} has been added as ${newRole}.`,
-      });
-
-      // Refresh the list
       fetchTeamMembers();
-
-      // Reset form but keep dialog open to show credentials
       setNewEmail('');
-      setNewPassword('');
       setNewFullName('');
-      setNewRole('client');
-    } catch (error: unknown) {
-      console.error('Error creating user:', error);
-      const message = error instanceof Error ? error.message : 'Failed to create user.';
-      toast({
-        title: 'Error',
-        description: message,
-        variant: 'destructive',
-      });
+      setNewRole('team');
+      setOtp(generateOTP());
+    } catch (err: any) {
+      console.error('Error creating user:', err);
+      toast({ title: 'Error', description: err.message || 'Failed to create user.', variant: 'destructive' });
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleAssignRole = async (userId: string, newRoleValue: AppRole) => {
+    const targetMember = members.find(m => m.user_id === userId);
+    const oldRole = targetMember?.role;
     try {
       const { data: existingRole } = await supabase
         .from('user_roles')
@@ -198,6 +216,7 @@ export default function Team() {
         title: 'Success',
         description: 'Role updated successfully.',
       });
+      logActivity('role_changed', targetMember?.full_name || userId, { from_role: oldRole, to_role: newRoleValue });
 
       fetchTeamMembers();
     } catch (error) {
@@ -210,17 +229,18 @@ export default function Team() {
     }
   };
 
-  const copyCredentials = () => {
-    if (createdCredentials) {
-      const text = `Email: ${createdCredentials.email}\nPassword: ${createdCredentials.password}`;
-      navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-      toast({
-        title: 'Copied!',
-        description: 'Credentials copied to clipboard.',
-      });
-    }
+  const copyToClipboard = async (text: string, field: 'email' | 'password' | 'both') => {
+    await navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const copyBoth = () => {
+    if (!createdCredentials) return;
+    copyToClipboard(
+      `Email: ${createdCredentials.email}\nOne-Time Password: ${createdCredentials.password}`,
+      'both'
+    );
   };
 
   const handleToggleSuspend = async (member: TeamMember) => {
@@ -246,8 +266,15 @@ export default function Team() {
           ? `${member.full_name} can now log in again.`
           : `${member.full_name} has been suspended and cannot log in.`,
       });
+      logActivity(isSuspended ? 'user_reactivated' : 'user_suspended', member.full_name);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Failed to update user status.';
+      let message = 'Failed to update user status.';
+      try {
+        const body = await (error as any).context?.json?.();
+        message = body?.error || (error instanceof Error ? error.message : message);
+      } catch {
+        message = error instanceof Error ? error.message : message;
+      }
       toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {
       setSuspendingUser(null);
@@ -258,9 +285,9 @@ export default function Team() {
     setIsDialogOpen(false);
     setCreatedCredentials(null);
     setNewEmail('');
-    setNewPassword('');
     setNewFullName('');
-    setNewRole('client');
+    setNewRole('team');
+    setOtp(generateOTP());
   };
 
   const getInitials = (name: string) => {
@@ -316,26 +343,44 @@ export default function Team() {
                   <DialogHeader>
                     <DialogTitle>User Created Successfully!</DialogTitle>
                     <DialogDescription>
-                      Share these credentials with the user. Make sure to save them as the password cannot be retrieved later.
+                      Share these credentials with the user. The one-time password must be reset on first login.
                     </DialogDescription>
                   </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="rounded-lg border border-border bg-muted/50 p-4 space-y-2">
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Email</Label>
-                        <p className="font-mono text-sm">{createdCredentials.email}</p>
+                  <div className="space-y-3 py-4">
+                    <div className="rounded-lg border border-green-200 bg-green-50 p-4 dark:border-green-900 dark:bg-green-950/30">
+                      <p className="mb-3 text-sm font-semibold text-green-800 dark:text-green-300">
+                        User created — share these credentials:
+                      </p>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between rounded-md border border-green-200 bg-white px-3 py-2 dark:border-green-800 dark:bg-green-950/50">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">Email</p>
+                            <p className="font-mono text-sm">{createdCredentials.email}</p>
+                          </div>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+                            onClick={() => copyToClipboard(createdCredentials!.email, 'email')}>
+                            {copiedField === 'email' ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                          </Button>
+                        </div>
+                        <div className="flex items-center justify-between rounded-md border border-green-200 bg-white px-3 py-2 dark:border-green-800 dark:bg-green-950/50">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-wide text-muted-foreground">One-Time Password</p>
+                            <p className="font-mono text-sm tracking-widest">{createdCredentials.password}</p>
+                          </div>
+                          <Button type="button" variant="ghost" size="icon" className="h-7 w-7 shrink-0"
+                            onClick={() => copyToClipboard(createdCredentials!.password, 'password')}>
+                            {copiedField === 'password' ? <Check className="h-3.5 w-3.5 text-green-600" /> : <Copy className="h-3.5 w-3.5" />}
+                          </Button>
+                        </div>
                       </div>
-                      <div>
-                        <Label className="text-xs text-muted-foreground">Password</Label>
-                        <p className="font-mono text-sm">{createdCredentials.password}</p>
-                      </div>
+                      <Button type="button" variant="outline" size="sm"
+                        className="mt-3 w-full border-green-300 text-green-700 hover:bg-green-100 dark:border-green-700 dark:text-green-400"
+                        onClick={copyBoth}>
+                        {copiedField === 'both' ? <><Check className="mr-2 h-3.5 w-3.5" />Copied!</> : <><Copy className="mr-2 h-3.5 w-3.5" />Copy Both</>}
+                      </Button>
                     </div>
                   </div>
-                  <DialogFooter className="flex gap-2">
-                    <Button variant="outline" onClick={copyCredentials}>
-                      {copied ? <Check className="mr-2 h-4 w-4" /> : <Copy className="mr-2 h-4 w-4" />}
-                      {copied ? 'Copied!' : 'Copy Credentials'}
-                    </Button>
+                  <DialogFooter>
                     <Button onClick={closeDialog}>Done</Button>
                   </DialogFooter>
                 </>
@@ -344,61 +389,71 @@ export default function Team() {
                   <DialogHeader>
                     <DialogTitle>Create New User</DialogTitle>
                     <DialogDescription>
-                      Create an account for a team member or client. They can use these credentials to log in.
+                      Add a team member or client. A one-time password will be generated — the user must reset it on first login.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="fullName">Full Name</Label>
-                      <Input
-                        id="fullName"
-                        placeholder="John Doe"
-                        value={newFullName}
-                        onChange={(e) => setNewFullName(e.target.value)}
-                        disabled={isSubmitting}
-                      />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="new_email">Email</Label>
+                        <Input
+                          id="new_email"
+                          type="email"
+                          placeholder="user@example.com"
+                          value={newEmail}
+                          onChange={(e) => setNewEmail(e.target.value)}
+                          disabled={isSubmitting}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new_full_name">Full Name</Label>
+                        <Input
+                          id="new_full_name"
+                          placeholder="Jane Smith"
+                          value={newFullName}
+                          onChange={(e) => setNewFullName(e.target.value)}
+                          disabled={isSubmitting}
+                        />
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="email">Email</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        placeholder="user@example.com"
-                        value={newEmail}
-                        onChange={(e) => setNewEmail(e.target.value)}
-                        disabled={isSubmitting}
-                      />
+                      <Label>Role</Label>
+                      <div className="grid grid-cols-2 gap-3">
+                        {(['team', 'client'] as const).map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => setNewRole(r)}
+                            disabled={isSubmitting}
+                            className={`flex flex-col items-start rounded-lg border p-3 text-left transition-colors ${
+                              newRole === r
+                                ? 'border-primary bg-primary/5 text-primary'
+                                : 'border-border hover:bg-muted/50'
+                            }`}
+                          >
+                            <span className="font-medium capitalize">{r}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {r === 'team' ? 'Full access to orders & production' : 'Client portal access only'}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="password">Password</Label>
-                      <Input
-                        id="password"
-                        type="password"
-                        placeholder="Minimum 8 characters"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        disabled={isSubmitting}
-                      />
+                      <Label className="flex items-center gap-1">
+                        <KeyRound className="h-3.5 w-3.5" />
+                        One-Time Password
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input value={otp} readOnly className="font-mono tracking-widest" />
+                        <Button type="button" variant="outline" size="icon"
+                          onClick={() => setOtp(generateOTP())} disabled={isSubmitting} title="Regenerate password">
+                          <RefreshCw className="h-4 w-4" />
+                        </Button>
+                      </div>
                       <p className="text-xs text-muted-foreground">
-                        Create a temporary password. Users can change it after logging in.
+                        Auto-generated. The user will be required to set a new password on first login.
                       </p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="role">Role</Label>
-                      <Select
-                        value={newRole}
-                        onValueChange={(value) => setNewRole(value as AppRole)}
-                        disabled={isSubmitting}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select role" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="admin">Admin</SelectItem>
-                          <SelectItem value="team">Team</SelectItem>
-                          <SelectItem value="client">Client</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                   </div>
                   <DialogFooter>
@@ -406,14 +461,7 @@ export default function Team() {
                       Cancel
                     </Button>
                     <Button onClick={handleCreateUser} disabled={isSubmitting}>
-                      {isSubmitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Creating...
-                        </>
-                      ) : (
-                        'Create User'
-                      )}
+                      {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Creating...</> : 'Create User'}
                     </Button>
                   </DialogFooter>
                 </>

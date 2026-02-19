@@ -54,7 +54,9 @@ export default function Auth() {
 
     if (error) {
       let message = 'An error occurred during login.';
-      if (error.message.includes('Invalid login credentials')) {
+      if (error.message.toLowerCase().includes('banned') || error.message.toLowerCase().includes('user_banned')) {
+        message = 'Your account has been suspended. Please contact an administrator.';
+      } else if (error.message.includes('Invalid login credentials')) {
         message = 'Invalid email or password. Please try again.';
       } else if (error.message.includes('Email not confirmed')) {
         message = 'Please confirm your email before logging in.';
