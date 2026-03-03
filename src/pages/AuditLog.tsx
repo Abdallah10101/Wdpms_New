@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -97,6 +98,7 @@ export default function AuditLog() {
 
   const [entries, setEntries] = useState<UnifiedEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState('all');
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/auth');
@@ -219,6 +221,17 @@ export default function AuditLog() {
     logActivity('csv_exported', 'audit_log', { count: entries.length });
   };
 
+  const filteredEntries = entries.filter((entry) => {
+    if (filter === 'all') return true;
+    if (filter === 'stage_changes') return entry.entry_type === 'stage_change';
+    if (filter === 'users') return ['user_created', 'user_suspended', 'user_reactivated', 'role_changed'].includes(entry.action_type || '');
+    if (filter === 'clients') return ['client_created', 'client_updated', 'client_deleted', 'client_bulk_deleted'].includes(entry.action_type || '');
+    if (filter === 'suppliers') return ['supplier_created', 'supplier_updated', 'supplier_deleted', 'supplier_bulk_deleted'].includes(entry.action_type || '');
+    if (filter === 'invoices') return ['invoice_created', 'invoice_deleted'].includes(entry.action_type || '');
+    if (filter === 'exports') return entry.action_type === 'csv_exported';
+    return true;
+  });
+
   if (authLoading || !user) return null;
 
   return (
@@ -238,23 +251,47 @@ export default function AuditLog() {
           </Button>
         </div>
 
+        <div className="flex items-center gap-3">
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Filter by type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Events</SelectItem>
+              <SelectItem value="stage_changes">Stage Changes</SelectItem>
+              <SelectItem value="users">User Actions</SelectItem>
+              <SelectItem value="clients">Client Actions</SelectItem>
+              <SelectItem value="suppliers">Supplier Actions</SelectItem>
+              <SelectItem value="invoices">Invoice Actions</SelectItem>
+              <SelectItem value="exports">CSV Exports</SelectItem>
+            </SelectContent>
+          </Select>
+          {filter !== 'all' && (
+            <span className="text-sm text-muted-foreground">
+              {filteredEntries.length} of {entries.length} events
+            </span>
+          )}
+        </div>
+
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">{entries.length} events recorded</CardTitle>
+            <CardTitle className="text-base">{filteredEntries.length} events {filter !== 'all' ? 'matching filter' : 'recorded'}</CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             {isLoading ? (
               <div className="space-y-3 p-6">
                 {[...Array(8)].map((_, i) => <Skeleton key={i} className="h-12 w-full" />)}
               </div>
-            ) : entries.length === 0 ? (
+            ) : filteredEntries.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <History className="h-12 w-12 text-muted-foreground/50" />
-                <p className="mt-4 text-sm text-muted-foreground">No events recorded yet</p>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  {filter !== 'all' ? 'No events match this filter' : 'No events recorded yet'}
+                </p>
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {entries.map((entry) => {
+                {filteredEntries.map((entry) => {
                   if (entry.entry_type === 'stage_change') {
                     const fromCfg = entry.from_stage ? getStageConfig(entry.from_stage) : null;
                     const toCfg = getStageConfig(entry.to_stage || '');
