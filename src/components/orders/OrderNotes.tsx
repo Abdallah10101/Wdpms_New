@@ -235,18 +235,18 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
               <div className="flex items-start gap-3">
                 <Avatar className="h-8 w-8">
                   <AvatarFallback className="text-xs">
-                    {(note.author as any)?.full_name?.charAt(0).toUpperCase() || 'U'}
+                    {((note.author as any)?.full_name || (note as any).author_name || 'U').charAt(0).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium text-sm">
-                      {(note.author as any)?.full_name || 'Unknown'}
+                      {(note.author as any)?.full_name || (note as any).author_name || 'Unknown'}
                     </span>
-                    {(note.author as any)?.role === 'admin' && (
+                    {((note.author as any)?.role || (note as any).author_role) === 'admin' && (
                       <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0">Admin</Badge>
                     )}
-                    {(note.author as any)?.role === 'team' && (
+                    {((note.author as any)?.role || (note as any).author_role) === 'team' && (
                       <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0">Team</Badge>
                     )}
                     <span className="text-xs text-muted-foreground">
