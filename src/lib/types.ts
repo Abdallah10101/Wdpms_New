@@ -320,3 +320,72 @@ export function getClientStageProgress(stage: ProductionStage): number {
   if (index === -1) return 0;
   return Math.round(((index + 1) / CLIENT_VISIBLE_STAGES.length) * 100);
 }
+
+// ── Order Analysis ──────────────────────────────────────
+export interface OrderAnalysisOrderItem {
+  id: string;
+  description: string;
+  category: string;
+  quantity: number;
+  unitPrice: number;
+  amount: number;
+}
+
+export interface OrderAnalysisInvoiceItem {
+  id: string;
+  product: string;
+  firstPaymentPct: number;
+  secondPaymentPct: number;
+  totalRevenue: number;
+}
+
+export interface OrderAnalysisCostItem {
+  id: string;
+  category: string;
+  amountTry: number;
+}
+
+export interface OrderAnalysisProfitItem {
+  product: string;
+  revenue: number;
+  costs: number;
+  grossProfit: number;
+  marginPct: number;
+}
+
+export interface OrderAnalysis {
+  id: string;
+  client_id: string;
+  analysis_title: string;
+  invoice_ref: string | null;
+  supplier: string | null;
+  exchange_rate: number;
+  display_currency: string;
+  analysis_date: string;
+  notes: string | null;
+  order_items: OrderAnalysisOrderItem[];
+  invoice_breakdown: OrderAnalysisInvoiceItem[];
+  cost_breakdown: OrderAnalysisCostItem[];
+  profit_summary: OrderAnalysisProfitItem[];
+  total_revenue: number;
+  total_costs: number;
+  total_profit: number;
+  margin_pct: number;
+  auto_notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export const ANALYSIS_COST_CATEGORIES = [
+  'Fabric',
+  'Production',
+  'Washhouse',
+  'Printing',
+  'Accessories',
+  'Embroidery',
+  'Packaging',
+  'Shipping',
+  'Commission',
+  'Other',
+] as const;

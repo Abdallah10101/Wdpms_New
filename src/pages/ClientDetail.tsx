@@ -20,6 +20,7 @@ import {
   Clock,
   CheckCircle2,
   Trash2,
+  BarChart3,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -33,6 +34,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PRODUCTION_STAGES, type Client, type Order, type OrderFile } from '@/lib/types';
+import OrderAnalysisTab from '@/components/order-analysis/OrderAnalysisTab';
 
 export default function ClientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -262,6 +264,12 @@ export default function ClientDetail() {
               <FileText className="h-4 w-4" />
               Receipts ({receipts.length})
             </TabsTrigger>
+            {role === 'admin' && (
+              <TabsTrigger value="analysis" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Analysis
+              </TabsTrigger>
+            )}
           </TabsList>
 
           {/* Production Tab - Kanban-like view */}
@@ -403,6 +411,12 @@ export default function ClientDetail() {
               </div>
             )}
           </TabsContent>
+
+          {role === 'admin' && (
+            <TabsContent value="analysis">
+              <OrderAnalysisTab clientId={id!} client={client} />
+            </TabsContent>
+          )}
         </Tabs>
 
         {/* Notes Section */}
