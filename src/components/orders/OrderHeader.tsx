@@ -216,17 +216,16 @@ export function OrderHeader({
           )}
         </div>
 
-        {/* Priority */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground flex items-center gap-1">
-            <Flag className="h-4 w-4" />
-            Priority
-          </span>
-          {canEdit ? (
+        {/* Priority — hidden from clients */}
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              <Flag className="h-4 w-4" />
+              Priority
+            </span>
             <Select
               value={order.priority}
               onValueChange={(value) => {
-                // Validate it's a valid priority value before calling
                 const validPriority = PRIORITY_CONFIG.find(p => p.value === value);
                 if (validPriority) {
                   onPriorityChange(validPriority.value);
@@ -250,12 +249,8 @@ export function OrderHeader({
                 ))}
               </SelectContent>
             </Select>
-          ) : (
-            <Badge className={`${priorityConfig.color} text-white`}>
-              {priorityConfig.label}
-            </Badge>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Due Date */}
         <div className="flex items-center gap-2">
