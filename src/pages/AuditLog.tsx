@@ -120,11 +120,14 @@ export default function AuditLog() {
 
   const [entries, setEntries] = useState<UnifiedEntry[]>([]);
   const [messageLog, setMessageLog] = useState<MessageLogEntry[]>([]);
+  const [clients, setClients] = useState<{ id: string; name: string }[]>([]);
+  const [orderClientMap, setOrderClientMap] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMessages, setIsLoadingMessages] = useState(true);
   const [filter, setFilter] = useState('all');
   const [activeTab, setActiveTab] = useState('audit');
   const [msgFilter, setMsgFilter] = useState('all');
+  const [clientFilter, setClientFilter] = useState('all');
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/auth');
@@ -135,6 +138,7 @@ export default function AuditLog() {
     if (user && role && role !== 'client') {
       fetchAuditLog();
       fetchMessageLog();
+      fetchClients();
     }
   }, [user, role]);
 
@@ -210,10 +214,34 @@ export default function AuditLog() {
 
       if (error) throw error;
       setMessageLog((data || []) as MessageLogEntry[]);
+
+      // Build order_id → client_id map for filtering
+      const orderIds = [...new Set((data || []).map((m: any) => m.order_id).filter(Boolean))];
+      if (orderIds.length > 0) {
+        const { data: orders } = await supabase
+          .from('orders')
+          .select('id, client_id')
+          .in('id', orderIds);
+        const map: Record<string, string> = {};
+        (orders || []).forEach((o: any) => { map[o.id] = o.client_id; });
+        setOrderClientMap(map);
+      }
     } catch (error) {
       console.error('Error fetching message log:', error);
     } finally {
       setIsLoadingMessages(false);
+    }
+  };
+
+  const fetchClients = async () => {
+    try {
+      const { data } = await supabase
+        .from('clients')
+        .select('id, name')
+        .order('name');
+      setClients((data || []) as { id: string; name: string }[]);
+    } catch (error) {
+      console.error('Error fetching clients:', error);
     }
   };
 
@@ -286,12 +314,17 @@ export default function AuditLog() {
   };
 
   const filteredMessages = messageLog.filter((m) => {
-    if (msgFilter === 'all') return true;
-    if (msgFilter === 'sent') return m.event_type === 'message_sent';
-    if (msgFilter === 'deleted') return m.event_type === 'message_deleted';
-    if (msgFilter === 'client') return m.author_role === 'client';
-    if (msgFilter === 'admin') return m.author_role === 'admin';
-    if (msgFilter === 'team') return m.author_role === 'team';
+    // Role/type filter
+    if (msgFilter === 'sent' && m.event_type !== 'message_sent') return false;
+    if (msgFilter === 'deleted' && m.event_type !== 'message_deleted') return false;
+    if (msgFilter === 'client' && m.author_role !== 'client') return false;
+    if (msgFilter === 'admin' && m.author_role !== 'admin') return false;
+    if (msgFilter === 'team' && m.author_role !== 'team') return false;
+    // Client filter
+    if (clientFilter !== 'all') {
+      const msgClientId = orderClientMap[m.order_id];
+      if (msgClientId !== clientFilter) return false;
+    }
     return true;
   });
 
@@ -485,7 +518,7 @@ export default function AuditLog() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Select value={msgFilter} onValueChange={setMsgFilter}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger className="w-44">
                     <SelectValue placeholder="Filter messages" />
                   </SelectTrigger>
                   <SelectContent>
@@ -497,7 +530,18 @@ export default function AuditLog() {
                     <SelectItem value="client">From Client</SelectItem>
                   </SelectContent>
                 </Select>
-                {msgFilter !== 'all' && (
+                <Select value={clientFilter} onValueChange={setClientFilter}>
+                  <SelectTrigger className="w-48">
+                    <SelectValue placeholder="Filter by client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Clients</SelectItem>
+                    {clients.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {(msgFilter !== 'all' || clientFilter !== 'all') && (
                   <span className="text-sm text-muted-foreground">
                     {filteredMessages.length} of {messageLog.length} messages
                   </span>
