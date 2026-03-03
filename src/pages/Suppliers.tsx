@@ -28,7 +28,19 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search, Truck, Mail, Phone, MapPin, Loader2, Star, Edit } from 'lucide-react';
+import { Plus, Search, Truck, Mail, Phone, MapPin, Loader2, Star, Edit, Trash2, CheckSquare, X, Download } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import type { Supplier, SupplierCategory, SUPPLIER_CATEGORY_CONFIG } from '@/lib/types';
 
 const SUPPLIER_CATEGORIES: typeof SUPPLIER_CATEGORY_CONFIG = [
@@ -45,7 +57,7 @@ const SUPPLIER_CATEGORIES: typeof SUPPLIER_CATEGORY_CONFIG = [
 
 export default function Suppliers() {
   const navigate = useNavigate();
-  const { user, role, isLoading: authLoading } = useAuth();
+  const { user, role, profile, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -55,6 +67,8 @@ export default function Suppliers() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const [formData, setFormData] = useState({
     name: '',
@@ -106,6 +120,95 @@ export default function Suppliers() {
     }
   };
 
+  const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
+    try {
+      await (supabase.from as any)('activity_log').insert({
+        action_type: actionType,
+        actor_id: user?.id,
+        actor_name: profile?.full_name || user?.email || 'Unknown',
+        target_name: targetName,
+        details,
+      });
+    } catch (err) {
+      console.error('Failed to log activity:', err);
+    }
+  };
+
+  const handleDeleteSupplier = async (supplierId: string) => {
+    try {
+      const supplier = suppliers.find((s) => s.id === supplierId);
+      const { error } = await (supabase.from('suppliers' as any) as any).delete().eq('id', supplierId);
+      if (error) throw error;
+      setSuppliers((prev) => prev.filter((s) => s.id !== supplierId));
+      toast({ title: 'Deleted', description: 'Supplier has been removed.' });
+      logActivity('supplier_deleted', supplier?.name || 'Unknown');
+    } catch (err: any) {
+      console.error('Error deleting supplier:', err);
+      toast({ title: 'Error', description: 'Failed to delete supplier.', variant: 'destructive' });
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredSuppliers.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredSuppliers.map((s) => s.id)));
+    }
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    const deletedNames: string[] = [];
+    for (const id of ids) {
+      try {
+        const supplier = suppliers.find((s) => s.id === id);
+        const { error } = await (supabase.from('suppliers' as any) as any).delete().eq('id', id);
+        if (!error) {
+          deletedNames.push(supplier?.name || 'Unknown');
+        }
+      } catch {}
+    }
+    if (deletedNames.length > 0) {
+      toast({ title: 'Deleted', description: `${deletedNames.length} supplier${deletedNames.length !== 1 ? 's' : ''} removed.` });
+      logActivity('supplier_bulk_deleted', `${deletedNames.length} suppliers`, { names: deletedNames });
+      fetchSuppliers();
+    }
+    exitSelectMode();
+  };
+
+  const exportCSV = (suppliersToExport?: Supplier[]) => {
+    const data = suppliersToExport || filteredSuppliers;
+    const headers = ['Name', 'Category', 'Specialty', 'Contact Person', 'Email', 'Phone', 'Address', 'Rating', 'Active'];
+    const rows = data.map(s => [
+      s.name, s.category, s.specialty || '', s.contact_person || '', s.email || '',
+      s.phone || '', s.address || '', s.quality_rating?.toString() || '', s.is_active ? 'Yes' : 'No',
+    ]);
+    const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'suppliers.csv'; a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBulkExport = () => {
+    const selected = filteredSuppliers.filter((s) => selectedIds.has(s.id));
+    exportCSV(selected);
+  };
+
   const handleCreateOrUpdateSupplier = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -152,6 +255,7 @@ export default function Suppliers() {
       }
 
       setIsDialogOpen(false);
+      logActivity(editingSupplier ? 'supplier_updated' : 'supplier_created', formData.name);
       setEditingSupplier(null);
       resetForm();
       fetchSuppliers();
@@ -250,13 +354,26 @@ export default function Suppliers() {
               Your supplier directory and contacts
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) {
-              setEditingSupplier(null);
-              resetForm();
-            }
-          }}>
+          <div className="flex gap-2">
+            {role === 'admin' && !selectMode && (
+              <Button variant="outline" onClick={() => setSelectMode(true)}>
+                <CheckSquare className="mr-2 h-4 w-4" />
+                Select
+              </Button>
+            )}
+            {!selectMode && (
+              <Button variant="outline" onClick={() => exportCSV()}>
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+            )}
+            {!selectMode && <Dialog open={isDialogOpen} onOpenChange={(open) => {
+              setIsDialogOpen(open);
+              if (!open) {
+                setEditingSupplier(null);
+                resetForm();
+              }
+            }}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
@@ -412,8 +529,57 @@ export default function Suppliers() {
                 </DialogFooter>
               </form>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
+          </div>
         </div>
+
+        {/* Bulk Action Bar */}
+        {selectMode && (
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-3">
+            <Checkbox
+              checked={selectedIds.size === filteredSuppliers.length && filteredSuppliers.length > 0}
+              onCheckedChange={toggleSelectAll}
+            />
+            <span className="text-sm font-medium">
+              {selectedIds.size} selected
+            </span>
+            <div className="ml-auto flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleBulkExport} disabled={selectedIds.size === 0}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Selected
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={selectedIds.size === 0}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Selected
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete {selectedIds.size} Supplier{selectedIds.size !== 1 ? 's' : ''}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete {selectedIds.size} selected supplier{selectedIds.size !== 1 ? 's' : ''}? This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleBulkDelete}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <Button variant="ghost" size="sm" onClick={exitSelectMode}>
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex flex-col gap-4 sm:flex-row">
@@ -466,22 +632,66 @@ export default function Suppliers() {
         ) : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {filteredSuppliers.map((supplier) => (
-              <Card key={supplier.id} className={!supplier.is_active ? 'opacity-60' : ''}>
+              <Card
+                key={supplier.id}
+                className={`${!supplier.is_active ? 'opacity-60' : ''} ${selectMode && selectedIds.has(supplier.id) ? 'ring-2 ring-primary' : ''} ${selectMode ? 'cursor-pointer' : ''}`}
+                onClick={selectMode ? () => toggleSelect(supplier.id) : undefined}
+              >
                 <CardHeader className="pb-2">
                   <div className="flex items-start justify-between">
-                    <div className="space-y-1">
-                      <CardTitle className="text-lg">{supplier.name}</CardTitle>
-                      {supplier.specialty && (
-                        <CardDescription>{supplier.specialty}</CardDescription>
+                    <div className="flex items-start gap-3">
+                      {selectMode && (
+                        <Checkbox
+                          checked={selectedIds.has(supplier.id)}
+                          onCheckedChange={() => toggleSelect(supplier.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="mt-1"
+                        />
                       )}
+                      <div className="space-y-1">
+                        <CardTitle className="text-lg">{supplier.name}</CardTitle>
+                        {supplier.specialty && (
+                          <CardDescription>{supplier.specialty}</CardDescription>
+                        )}
+                      </div>
                     </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEditSupplier(supplier)}
-                    >
-                      <Edit className="h-4 w-4" />
-                    </Button>
+                    {!selectMode && (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleEditSupplier(supplier)}
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        {role === 'admin' && (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive">
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Delete Supplier</AlertDialogTitle>
+                                <AlertDialogDescription>
+                                  Are you sure you want to delete "{supplier.name}"? This action cannot be undone.
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                <AlertDialogAction
+                                  onClick={() => handleDeleteSupplier(supplier.id)}
+                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                >
+                                  Delete
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 pt-1">
                     {getCategoryBadge(supplier.category)}
