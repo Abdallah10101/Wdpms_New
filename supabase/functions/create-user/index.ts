@@ -10,6 +10,7 @@ interface CreateUserRequest {
   password: string
   fullName: string
   role: 'admin' | 'team' | 'client'
+  brandName?: string
 }
 
 Deno.serve(async (req) => {
@@ -69,7 +70,7 @@ Deno.serve(async (req) => {
     }
 
     // Parse request body
-    const { email, password, fullName, role }: CreateUserRequest = await req.json()
+    const { email, password, fullName, role, brandName }: CreateUserRequest = await req.json()
 
     // Validate inputs
     if (!email || !password || !fullName || !role) {
@@ -139,9 +140,33 @@ Deno.serve(async (req) => {
 
     console.log(`Role ${role} assigned to user ${newUser.user.id}`)
 
+    // If role is client, create a client record linked to this user
+    let clientRecord = null
+    if (role === 'client') {
+      const { data: clientData, error: clientError } = await supabaseAdmin
+        .from('clients')
+        .insert({
+          name: fullName,
+          brand_name: brandName || null,
+          contact_email: email,
+          user_id: newUser.user.id,
+          created_by: callingUser.id,
+        })
+        .select()
+        .single()
+
+      if (clientError) {
+        console.error('Client record creation error:', clientError)
+      } else {
+        clientRecord = clientData
+        console.log(`Client record created for user ${newUser.user.id}`)
+      }
+    }
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         user: newUser.user,
+        clientRecord,
         message: `User ${email} created successfully with role: ${role}`,
       }),
       { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

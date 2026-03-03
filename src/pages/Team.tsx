@@ -177,7 +177,13 @@ export default function Team() {
     setCreatedCredentials(null);
     try {
       const { data, error } = await supabase.functions.invoke('create-user', {
-        body: { email: newEmail, password: otp, fullName: newFullName, role: newRole },
+        body: {
+          email: newEmail,
+          password: otp,
+          fullName: newFullName,
+          role: newRole,
+          ...(newRole === 'client' && clientLinkMode === 'new' ? { brandName: brandName || undefined } : {}),
+        },
       });
 
       if (error) {
@@ -192,44 +198,12 @@ export default function Team() {
       }
       if (data?.error) throw new Error(data.error);
 
-      // If role is client, create or link client record
-      if (newRole === 'client') {
-        let newUserId = data?.user?.id;
-        console.log('Create-user response data:', JSON.stringify(data));
-
-        // Fallback: if edge function didn't return user ID, look up from profiles
-        if (!newUserId) {
-          console.warn('No user ID in response, looking up from profiles...');
-          const { data: profileLookup } = await supabase
-            .from('profiles')
-            .select('user_id')
-            .eq('email', newEmail)
-            .maybeSingle();
-          newUserId = profileLookup?.user_id;
-          console.log('Profile lookup result:', newUserId);
-        }
-
-        if (!newUserId) {
-          console.error('Could not determine new user ID. Full response:', data);
-          toast({ title: 'Warning', description: 'User created but could not link client profile — no user ID found.', variant: 'destructive' });
-        } else if (clientLinkMode === 'existing' && selectedClientId) {
-          const { error: linkError } = await supabase.from('clients').update({ user_id: newUserId }).eq('id', selectedClientId);
-          if (linkError) {
-            console.error('Failed to link client:', linkError);
-            toast({ title: 'Warning', description: `User created but client linking failed: ${linkError.message}`, variant: 'destructive' });
-          }
-        } else {
-          const { error: insertError } = await supabase.from('clients').insert({
-            name: newFullName,
-            brand_name: brandName || null,
-            contact_email: newEmail,
-            user_id: newUserId,
-            created_by: user?.id,
-          });
-          if (insertError) {
-            console.error('Failed to create client record:', insertError);
-            toast({ title: 'Warning', description: `User created but client profile failed: ${insertError.message}`, variant: 'destructive' });
-          }
+      // If linking to an existing client, update client record with new user ID
+      if (newRole === 'client' && clientLinkMode === 'existing' && selectedClientId && data?.user?.id) {
+        const { error: linkError } = await supabase.from('clients').update({ user_id: data.user.id }).eq('id', selectedClientId);
+        if (linkError) {
+          console.error('Failed to link client:', linkError);
+          toast({ title: 'Warning', description: `User created but client linking failed: ${linkError.message}`, variant: 'destructive' });
         }
       }
 
