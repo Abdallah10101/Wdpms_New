@@ -30,7 +30,7 @@ import {
   Send,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
-import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, type Order, type OrderNote } from '@/lib/types';
+import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, normalizeStage, type Order, type OrderNote } from '@/lib/types';
 
 const STAGE_SHORT_LABELS: Record<string, string> = {
   cutting: 'Cut',
@@ -38,8 +38,8 @@ const STAGE_SHORT_LABELS: Record<string, string> = {
   embroidery: 'Emb',
   sewing: 'Sew',
   wash_house: 'Wash',
-  qc: 'QC',
-  packaging: 'Pack',
+  qc: 'QC&Pack',
+  packaging: 'QC&Pack',
   shipping: 'Ship',
   delivered: 'Done',
 };
@@ -245,7 +245,7 @@ export default function ClientPortal() {
   };
 
   const getStageConfig = (stage: string) => {
-    return PRODUCTION_STAGES.find(s => s.value === stage) || PRODUCTION_STAGES[0];
+    return PRODUCTION_STAGES.find(s => s.value === normalizeStage(stage as any)) || PRODUCTION_STAGES[0];
   };
 
   const activeOrders = orders.filter(o => o.current_stage !== 'delivered');

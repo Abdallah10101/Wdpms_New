@@ -30,6 +30,7 @@ import {
 import {
   PRODUCTION_STAGES,
   getStageProgress,
+  normalizeStage,
   type Order,
   type ProductionStage,
   type OrderPriority,
@@ -229,7 +230,7 @@ export default function OrderDetail() {
   };
 
   const getStageConfig = (stage: ProductionStage) => {
-    return PRODUCTION_STAGES.find(s => s.value === stage) || PRODUCTION_STAGES[0];
+    return PRODUCTION_STAGES.find(s => s.value === normalizeStage(stage)) || PRODUCTION_STAGES[0];
   };
 
   if (authLoading || !user) {
@@ -292,8 +293,9 @@ export default function OrderDetail() {
             <Progress value={progress} className="h-2" />
             <div className="flex gap-1 mt-3 overflow-x-auto pb-1">
               {PRODUCTION_STAGES.map((stage, index) => {
-                const isActive = order.current_stage === stage.value;
-                const isPast = PRODUCTION_STAGES.findIndex(s => s.value === order.current_stage) > index;
+                const normalizedCurrent = normalizeStage(order.current_stage);
+                const isActive = normalizedCurrent === stage.value;
+                const isPast = PRODUCTION_STAGES.findIndex(s => s.value === normalizedCurrent) > index;
                 return (
                   <div
                     key={stage.value}

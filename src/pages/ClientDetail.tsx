@@ -33,7 +33,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
-import { PRODUCTION_STAGES, type Client, type Order, type OrderFile } from '@/lib/types';
+import { PRODUCTION_STAGES, normalizeStage, type Client, type Order, type OrderFile } from '@/lib/types';
 import OrderAnalysisTab from '@/components/order-analysis/OrderAnalysisTab';
 
 export default function ClientDetail() {
@@ -111,7 +111,7 @@ export default function ClientDetail() {
   };
 
   const getStageConfig = (stage: string) => {
-    return PRODUCTION_STAGES.find(s => s.value === stage) || PRODUCTION_STAGES[0];
+    return PRODUCTION_STAGES.find(s => s.value === normalizeStage(stage as any)) || PRODUCTION_STAGES[0];
   };
 
   const handleDeleteClient = async () => {
@@ -149,7 +149,7 @@ export default function ClientDetail() {
 
   // Group active orders by stage for kanban-like view
   const ordersByStage = PRODUCTION_STAGES.reduce((acc, stage) => {
-    acc[stage.value] = activeOrders.filter(o => o.current_stage === stage.value);
+    acc[stage.value] = activeOrders.filter(o => normalizeStage(o.current_stage) === stage.value);
     return acc;
   }, {} as Record<string, Order[]>);
 

@@ -362,7 +362,7 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
                 </div>
               ) : (
                 typeOrders.map(order => {
-                  const stageConfig = PRODUCTION_STAGES.find(s => s.value === order.current_stage);
+                  const stageConfig = PRODUCTION_STAGES.find(s => s.value === (order.current_stage === 'packaging' ? 'qc' : order.current_stage));
                   return (
                     <div
                       key={order.id}

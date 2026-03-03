@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Activity, ArrowRight, Package } from 'lucide-react';
-import { PRODUCTION_STAGES } from '@/lib/types';
+import { PRODUCTION_STAGES, normalizeStage } from '@/lib/types';
 
 interface OrderUpdate {
   id: string;
@@ -20,11 +20,11 @@ interface LiveActivityFeedProps {
 
 export function LiveActivityFeed({ updates }: LiveActivityFeedProps) {
   const getStageLabel = (stage: string) => {
-    return PRODUCTION_STAGES.find(s => s.value === stage)?.label || stage;
+    return PRODUCTION_STAGES.find(s => s.value === normalizeStage(stage as any))?.label || stage;
   };
 
   const getStageColor = (stage: string) => {
-    return PRODUCTION_STAGES.find(s => s.value === stage)?.color || 'bg-muted';
+    return PRODUCTION_STAGES.find(s => s.value === normalizeStage(stage as any))?.color || 'bg-muted';
   };
 
   if (updates.length === 0) {

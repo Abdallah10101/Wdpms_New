@@ -13,6 +13,7 @@ import { format } from 'date-fns';
 import {
   PRODUCTION_STAGES,
   PRIORITY_CONFIG,
+  normalizeStage,
   type Order,
   type ProductionStage,
   type OrderPriority,
@@ -40,7 +41,7 @@ export function OrderHeader({
   onPriorityChange,
   onNameChange,
 }: OrderHeaderProps) {
-  const stageConfig = PRODUCTION_STAGES.find(s => s.value === order.current_stage) || PRODUCTION_STAGES[0];
+  const stageConfig = PRODUCTION_STAGES.find(s => s.value === normalizeStage(order.current_stage)) || PRODUCTION_STAGES[0];
   const priorityConfig = PRIORITY_CONFIG.find(p => p.value === order.priority) || PRIORITY_CONFIG[1];
 
   const [isEditingName, setIsEditingName] = useState(false);

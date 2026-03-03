@@ -9,7 +9,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   LineChart, Line, PieChart, Pie, Cell, Legend,
 } from 'recharts';
-import { PRODUCTION_STAGES } from '@/lib/types';
+import { PRODUCTION_STAGES, normalizeStage } from '@/lib/types';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
 import { BarChart3 } from 'lucide-react';
 
@@ -43,7 +43,7 @@ export default function Analytics() {
       if (orders) {
         const stageCounts = PRODUCTION_STAGES.filter(s => s.value !== 'not_started').map(stage => ({
           stage: stage.label,
-          count: orders.filter(o => o.current_stage === stage.value).length,
+          count: orders.filter(o => normalizeStage(o.current_stage as any) === stage.value).length,
           color: stage.color.replace('bg-', ''),
         })).filter(s => s.count > 0);
         setOrdersByStage(stageCounts);

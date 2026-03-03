@@ -67,6 +67,11 @@ export function OrderAnalysisDialog({
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Per-section currencies
+  const [orderItemsCurrency, setOrderItemsCurrency] = useState('EUR');
+  const [invoiceCurrency, setInvoiceCurrency] = useState('EUR');
+  const [costCurrency, setCostCurrency] = useState('TRY');
+
   // Dynamic arrays
   const [orderItems, setOrderItems] = useState<OrderAnalysisOrderItem[]>([
     { id: crypto.randomUUID(), description: '', category: '', quantity: 0, unitPrice: 0, amount: 0 },
@@ -98,6 +103,15 @@ export function OrderAnalysisDialog({
 
   useEffect(() => { if (open) fetchRates(); }, [open, fetchRates]);
 
+  // Helper: get exchange rate from currencyA to currencyB using EUR base rates
+  const getCrossRate = useCallback((from: string, to: string): number => {
+    if (from === to) return 1;
+    if (Object.keys(ratesFromEUR).length === 0) return 1;
+    const fromRate = from === 'EUR' ? 1 : (ratesFromEUR[from] || 1);
+    const toRate = to === 'EUR' ? 1 : (ratesFromEUR[to] || 1);
+    return toRate / fromRate;
+  }, [ratesFromEUR]);
+
   useEffect(() => {
     if (Object.keys(ratesFromEUR).length === 0 || isView) return;
     if (displayCurrency === 'EUR') { setExchangeRate(1); return; }
@@ -115,6 +129,9 @@ export function OrderAnalysisDialog({
       setAnalysisDate(existing.analysis_date);
       setDisplayCurrency(existing.display_currency);
       setExchangeRate(existing.exchange_rate);
+      setOrderItemsCurrency(existing.order_items_currency || existing.display_currency);
+      setInvoiceCurrency(existing.invoice_currency || existing.display_currency);
+      setCostCurrency(existing.cost_currency || 'TRY');
       setNotes(existing.notes || '');
       setOrderItems(existing.order_items.length > 0 ? existing.order_items : [
         { id: crypto.randomUUID(), description: '', category: '', quantity: 0, unitPrice: 0, amount: 0 },
@@ -137,6 +154,9 @@ export function OrderAnalysisDialog({
     setAnalysisDate(format(new Date(), 'yyyy-MM-dd'));
     setDisplayCurrency('EUR');
     setExchangeRate(1);
+    setOrderItemsCurrency('EUR');
+    setInvoiceCurrency('EUR');
+    setCostCurrency('TRY');
     setNotes('');
     setOrderItems([{ id: crypto.randomUUID(), description: '', category: '', quantity: 0, unitPrice: 0, amount: 0 }]);
     setInvoiceBreakdown([{ id: crypto.randomUUID(), product: '', firstPaymentPct: 60, secondPaymentPct: 40, totalRevenue: 0 }]);
@@ -145,18 +165,27 @@ export function OrderAnalysisDialog({
 
   // ── Calculations ──
   const calculations = useMemo(() => {
-    const rate = exchangeRate || 1;
+    // Cross rates to convert each section to display currency
+    const orderToDisplay = getCrossRate(orderItemsCurrency, displayCurrency);
+    const invoiceToDisplay = getCrossRate(invoiceCurrency, displayCurrency);
+    const costToDisplay = getCrossRate(costCurrency, displayCurrency);
 
-    const totalRevenue = orderItems.reduce((s, i) => s + (i.quantity * i.unitPrice), 0);
-    const totalCostsTRY = costBreakdown.reduce((s, i) => s + (i.amountTry || 0), 0);
-    const totalCostsDisplay = rate > 0 ? totalCostsTRY / rate : 0;
+    // Revenue in display currency
+    const totalRevenueRaw = orderItems.reduce((s, i) => s + (i.quantity * i.unitPrice), 0);
+    const totalRevenue = totalRevenueRaw * orderToDisplay;
+
+    // Costs in their original currency and converted
+    const totalCostsOriginal = costBreakdown.reduce((s, i) => s + (i.amountTry || 0), 0);
+    const totalCostsDisplay = totalCostsOriginal * costToDisplay;
+
     const grossProfit = totalRevenue - totalCostsDisplay;
     const marginPct = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
 
+    // Invoice breakdown converted to display
     const profitSummary: OrderAnalysisProfitItem[] = invoiceBreakdown
       .filter(i => i.product)
       .map(item => {
-        const rev = item.totalRevenue;
+        const rev = item.totalRevenue * invoiceToDisplay;
         const share = totalRevenue > 0 ? rev / totalRevenue : 0;
         const cost = totalCostsDisplay * share;
         const profit = rev - cost;
@@ -176,33 +205,29 @@ export function OrderAnalysisDialog({
     });
     const sorted = [...costBreakdown].sort((a, b) => (b.amountTry || 0) - (a.amountTry || 0));
     if (sorted.length > 0 && sorted[0].amountTry > 0) {
-      const pct = totalCostsTRY > 0 ? ((sorted[0].amountTry / totalCostsTRY) * 100).toFixed(1) : '0';
-      lines.push(`${sorted[0].category} is the largest cost at ${fcTRY(sorted[0].amountTry)} (${fc(sorted[0].amountTry / rate)}), representing ${pct}% of costs.`);
+      const pct = totalCostsOriginal > 0 ? ((sorted[0].amountTry / totalCostsOriginal) * 100).toFixed(1) : '0';
+      lines.push(`${sorted[0].category} is the largest cost at ${fcCost(sorted[0].amountTry)} (${fc(sorted[0].amountTry * costToDisplay)}), representing ${pct}% of costs.`);
     }
     if (totalRevenue > 0) {
       lines.push(`Combined gross profit: ${fc(grossProfit)} on ${fc(totalRevenue)} revenue — blended margin of ${marginPct.toFixed(2)}%.`);
     }
-    lines.push(`TRY costs subject to exchange rate movement. Rate: 1 ${displayCurrency} = ${rate.toFixed(2)} TRY. Direct costs only — customs and overhead not included.`);
+    lines.push(`Costs in ${costCurrency} converted at live rates. Direct costs only — customs and overhead not included.`);
 
-    return { totalRevenue, totalCostsTRY, totalCostsDisplay, grossProfit, marginPct, profitSummary, autoNotes: lines.join('\n') };
-  }, [orderItems, costBreakdown, invoiceBreakdown, exchangeRate, displayCurrency]);
+    return { totalRevenue, totalRevenueRaw, totalCostsOriginal, totalCostsDisplay, grossProfit, marginPct, profitSummary, autoNotes: lines.join('\n'), orderToDisplay, costToDisplay };
+  }, [orderItems, costBreakdown, invoiceBreakdown, displayCurrency, orderItemsCurrency, invoiceCurrency, costCurrency, getCrossRate]);
 
-  function fc(v: number): string {
+  function fmtCur(v: number, cur: string): string {
     try {
       return new Intl.NumberFormat('en-US', {
-        style: 'currency', currency: displayCurrency,
+        style: 'currency', currency: cur,
         minimumFractionDigits: 2, maximumFractionDigits: 2,
       }).format(v);
-    } catch { return `${displayCurrency} ${v.toFixed(2)}`; }
+    } catch { return `${cur} ${v.toFixed(2)}`; }
   }
-  function fcTRY(v: number): string {
-    try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency', currency: 'TRY',
-        minimumFractionDigits: 2, maximumFractionDigits: 2,
-      }).format(v);
-    } catch { return `TRY ${v.toFixed(2)}`; }
-  }
+  function fc(v: number): string { return fmtCur(v, displayCurrency); }
+  function fcOrder(v: number): string { return fmtCur(v, orderItemsCurrency); }
+  function fcInvoice(v: number): string { return fmtCur(v, invoiceCurrency); }
+  function fcCost(v: number): string { return fmtCur(v, costCurrency); }
 
   // ── Order Items helpers ──
   const updateOrderItem = (id: string, field: keyof OrderAnalysisOrderItem, value: any) => {
@@ -250,6 +275,9 @@ export function OrderAnalysisDialog({
         supplier: supplierName || null,
         exchange_rate: exchangeRate,
         display_currency: displayCurrency,
+        order_items_currency: orderItemsCurrency,
+        invoice_currency: invoiceCurrency,
+        cost_currency: costCurrency,
         analysis_date: analysisDate,
         notes: notes || null,
         order_items: orderItems.map(i => ({ ...i, amount: i.quantity * i.unitPrice })),
@@ -295,6 +323,9 @@ export function OrderAnalysisDialog({
       supplier: supplierName || null,
       exchange_rate: exchangeRate,
       display_currency: displayCurrency,
+      order_items_currency: orderItemsCurrency,
+      invoice_currency: invoiceCurrency,
+      cost_currency: costCurrency,
       analysis_date: analysisDate,
       notes: notes || null,
       order_items: orderItems.map(i => ({ ...i, amount: i.quantity * i.unitPrice })),
@@ -316,8 +347,6 @@ export function OrderAnalysisDialog({
     printWindow.document.close();
     printWindow.print();
   };
-
-  const rate = exchangeRate || 1;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -384,13 +413,22 @@ export function OrderAnalysisDialog({
             {/* ── Section 2: Order Items (Revenue) ── */}
             <Card>
               <CardContent className="pt-6 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <Label className="text-base font-semibold">Order Items (Revenue)</Label>
-                  {!isView && (
-                    <Button type="button" variant="outline" size="sm" onClick={addOrderItem}>
-                      <Plus className="h-4 w-4 mr-1" /> Add Item
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Currency:</Label>
+                    <Select value={orderItemsCurrency} onValueChange={setOrderItemsCurrency} disabled={isView}>
+                      <SelectTrigger className="w-[100px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="max-h-[260px]">
+                        {currencies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {!isView && (
+                      <Button type="button" variant="outline" size="sm" onClick={addOrderItem}>
+                        <Plus className="h-4 w-4 mr-1" /> Add Item
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {orderItems.map(item => (
                   <div key={item.id} className="p-3 border rounded-lg space-y-3 bg-muted/20">
@@ -408,13 +446,13 @@ export function OrderAnalysisDialog({
                         <Input type="number" min="0" value={item.quantity || ''} onChange={e => updateOrderItem(item.id, 'quantity', parseInt(e.target.value) || 0)} disabled={isView} />
                       </div>
                       <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Unit Price ({displayCurrency})</Label>
+                        <Label className="text-xs">Unit Price ({orderItemsCurrency})</Label>
                         <Input type="number" step="0.01" min="0" value={item.unitPrice || ''} onChange={e => updateOrderItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)} disabled={isView} />
                       </div>
                       <div className="col-span-2 space-y-1">
                         <Label className="text-xs">Amount</Label>
                         <div className="h-10 px-3 py-2 rounded-md border bg-muted flex items-center font-medium text-sm">
-                          {fc(item.quantity * item.unitPrice)}
+                          {fcOrder(item.quantity * item.unitPrice)}
                         </div>
                       </div>
                       {!isView && orderItems.length > 1 && (
@@ -428,7 +466,8 @@ export function OrderAnalysisDialog({
                   </div>
                 ))}
                 <div className="flex justify-end text-sm font-semibold">
-                  Total Revenue: {fc(calculations.totalRevenue)}
+                  Total Revenue: {fcOrder(calculations.totalRevenueRaw)}
+                  {orderItemsCurrency !== displayCurrency && <span className="text-muted-foreground font-normal ml-2">({fc(calculations.totalRevenue)})</span>}
                 </div>
               </CardContent>
             </Card>
@@ -436,13 +475,22 @@ export function OrderAnalysisDialog({
             {/* ── Section 3: Invoice Breakdown ── */}
             <Card>
               <CardContent className="pt-6 space-y-4">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-3">
                   <Label className="text-base font-semibold">Invoice Breakdown</Label>
-                  {!isView && (
-                    <Button type="button" variant="outline" size="sm" onClick={addInvoiceItem}>
-                      <Plus className="h-4 w-4 mr-1" /> Add Product
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Currency:</Label>
+                    <Select value={invoiceCurrency} onValueChange={setInvoiceCurrency} disabled={isView}>
+                      <SelectTrigger className="w-[100px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="max-h-[260px]">
+                        {currencies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {!isView && (
+                      <Button type="button" variant="outline" size="sm" onClick={addInvoiceItem}>
+                        <Plus className="h-4 w-4 mr-1" /> Add Product
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {invoiceBreakdown.map(item => (
                   <div key={item.id} className="p-3 border rounded-lg bg-muted/20">
@@ -462,7 +510,7 @@ export function OrderAnalysisDialog({
                         </div>
                       </div>
                       <div className="col-span-3 space-y-1">
-                        <Label className="text-xs">Total Revenue ({displayCurrency})</Label>
+                        <Label className="text-xs">Total Revenue ({invoiceCurrency})</Label>
                         <Input type="number" step="0.01" min="0" value={item.totalRevenue || ''} onChange={e => updateInvoiceItem(item.id, 'totalRevenue', parseFloat(e.target.value) || 0)} disabled={isView} />
                       </div>
                       {!isView && invoiceBreakdown.length > 1 && (
@@ -481,17 +529,26 @@ export function OrderAnalysisDialog({
             {/* ── Section 4: Cost Breakdown ── */}
             <Card>
               <CardContent className="pt-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <Label className="text-base font-semibold">Cost Breakdown (Expenses in TRY)</Label>
-                  {!isView && (
-                    <Button type="button" variant="outline" size="sm" onClick={addCostItem}>
-                      <Plus className="h-4 w-4 mr-1" /> Add Cost
-                    </Button>
-                  )}
+                <div className="flex items-center justify-between gap-3">
+                  <Label className="text-base font-semibold">Cost Breakdown</Label>
+                  <div className="flex items-center gap-2">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Currency:</Label>
+                    <Select value={costCurrency} onValueChange={setCostCurrency} disabled={isView}>
+                      <SelectTrigger className="w-[100px] h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent className="max-h-[260px]">
+                        {currencies.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    {!isView && (
+                      <Button type="button" variant="outline" size="sm" onClick={addCostItem}>
+                        <Plus className="h-4 w-4 mr-1" /> Add Cost
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {costBreakdown.map(item => {
-                  const converted = rate > 0 ? (item.amountTry || 0) / rate : 0;
-                  const pctCosts = calculations.totalCostsTRY > 0 ? ((item.amountTry || 0) / calculations.totalCostsTRY * 100) : 0;
+                  const converted = (item.amountTry || 0) * calculations.costToDisplay;
+                  const pctCosts = calculations.totalCostsOriginal > 0 ? ((item.amountTry || 0) / calculations.totalCostsOriginal * 100) : 0;
                   const pctRevenue = calculations.totalRevenue > 0 ? (converted / calculations.totalRevenue * 100) : 0;
                   return (
                     <div key={item.id} className="p-3 border rounded-lg bg-muted/20">
@@ -510,15 +567,17 @@ export function OrderAnalysisDialog({
                           )}
                         </div>
                         <div className="col-span-2 space-y-1">
-                          <Label className="text-xs">Amount (TRY)</Label>
+                          <Label className="text-xs">Amount ({costCurrency})</Label>
                           <Input type="number" step="0.01" min="0" value={item.amountTry || ''} onChange={e => updateCostItem(item.id, 'amountTry', parseFloat(e.target.value) || 0)} disabled={isView} />
                         </div>
+                        {costCurrency !== displayCurrency && (
                         <div className="col-span-2 space-y-1">
                           <Label className="text-xs">Amount ({displayCurrency})</Label>
                           <div className="h-10 px-3 py-2 rounded-md border bg-muted flex items-center font-medium text-sm">
                             {fc(converted)}
                           </div>
                         </div>
+                        )}
                         <div className="col-span-2 space-y-1">
                           <Label className="text-xs">% of Costs</Label>
                           <div className="h-10 px-3 py-2 rounded-md border bg-muted flex items-center text-sm">
@@ -543,7 +602,8 @@ export function OrderAnalysisDialog({
                   );
                 })}
                 <div className="flex justify-end text-sm font-semibold">
-                  Total Costs: {fcTRY(calculations.totalCostsTRY)} ({fc(calculations.totalCostsDisplay)})
+                  Total Costs: {fcCost(calculations.totalCostsOriginal)}
+                  {costCurrency !== displayCurrency && <span className="text-muted-foreground font-normal ml-2">({fc(calculations.totalCostsDisplay)})</span>}
                 </div>
               </CardContent>
             </Card>

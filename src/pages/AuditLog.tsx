@@ -15,7 +15,7 @@ import {
   History, ExternalLink, Download, UserX, UserCheck, UserPlus,
   ShieldAlert, ArrowRightLeft, Building2, Pencil, Trash2, Truck, FileText, MessageSquare, Eye, EyeOff,
 } from 'lucide-react';
-import { PRODUCTION_STAGES } from '@/lib/types';
+import { PRODUCTION_STAGES, normalizeStage } from '@/lib/types';
 import { format } from 'date-fns';
 
 type MessageLogEntry = {
@@ -245,7 +245,7 @@ export default function AuditLog() {
     }
   };
 
-  const getStageConfig = (stage: string) => PRODUCTION_STAGES.find(s => s.value === stage);
+  const getStageConfig = (stage: string) => PRODUCTION_STAGES.find(s => s.value === normalizeStage(stage as any));
 
   const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
     try {

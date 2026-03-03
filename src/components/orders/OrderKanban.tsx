@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { PRODUCTION_STAGES, type Order, type ProductionStage } from '@/lib/types';
+import { PRODUCTION_STAGES, normalizeStage, type Order, type ProductionStage } from '@/lib/types';
 import { Trash2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -33,7 +33,7 @@ export function OrderKanban({ orders, onOrderUpdated }: OrderKanbanProps) {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const getOrdersByStage = (stage: ProductionStage) => {
-    return orders.filter(order => order.current_stage === stage);
+    return orders.filter(order => normalizeStage(order.current_stage) === stage);
   };
 
   const handleDragEnd = async (result: DropResult) => {

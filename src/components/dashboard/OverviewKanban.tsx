@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Calendar, LayoutGrid, List, Plus, Trash2 } from 'lucide-react';
-import { PRODUCTION_STAGES, type ProductionStage, type Order } from '@/lib/types';
+import { PRODUCTION_STAGES, normalizeStage, type ProductionStage, type Order } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { DragDropContext, Droppable, Draggable, DropResult } from '@hello-pangea/dnd';
 import {
@@ -100,7 +100,7 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
       });
 
   const getOrdersByStage = (stage: ProductionStage) => {
-    return filteredOrders.filter(order => order.current_stage === stage);
+    return filteredOrders.filter(order => normalizeStage(order.current_stage) === stage);
   };
 
   const handleDragEnd = async (result: DropResult) => {
@@ -374,7 +374,7 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
                 </div>
               ) : (
                 filteredOrders.map(order => {
-                  const stageConfig = PRODUCTION_STAGES.find(s => s.value === order.current_stage);
+                  const stageConfig = PRODUCTION_STAGES.find(s => s.value === normalizeStage(order.current_stage));
                   return (
                     <div
                       key={order.id}

@@ -18,7 +18,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { DualOverviewKanban } from '@/components/dashboard/DualOverviewKanban';
-import { PRODUCTION_STAGES } from '@/lib/types';
+import { PRODUCTION_STAGES, normalizeStage } from '@/lib/types';
 
 interface DashboardStats {
   totalOrders: number;
@@ -91,7 +91,7 @@ export default function Dashboard() {
           .filter(s => s.value !== 'delivered' && s.value !== 'not_started')
           .map(stage => ({
             label: stage.label,
-            count: allOrders?.filter(o => o.current_stage === stage.value).length || 0,
+            count: allOrders?.filter(o => normalizeStage(o.current_stage as any) === stage.value).length || 0,
             color: stage.color,
           }))
           .filter(s => s.count > 0),

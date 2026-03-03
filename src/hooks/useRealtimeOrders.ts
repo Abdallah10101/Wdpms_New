@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { Order } from '@/lib/types';
-import { PRODUCTION_STAGES } from '@/lib/types';
+import { PRODUCTION_STAGES, normalizeStage } from '@/lib/types';
 
 interface OrderUpdate {
   id: string;
@@ -91,7 +91,7 @@ export function useRealtimeOrders(clientId?: string) {
             
             // Track stage changes
             if (oldOrder.current_stage !== updatedOrder.current_stage) {
-              const stageName = PRODUCTION_STAGES.find(s => s.value === updatedOrder.current_stage)?.label;
+              const stageName = PRODUCTION_STAGES.find(s => s.value === normalizeStage(updatedOrder.current_stage))?.label;
               
               setRecentUpdates(prev => [{
                 id: updatedOrder.id,

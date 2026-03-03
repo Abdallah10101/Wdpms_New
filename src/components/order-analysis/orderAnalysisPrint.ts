@@ -20,12 +20,20 @@ function formatCurrency(value: number, currency: string): string {
 }
 
 export function generateOrderAnalysisPrintHTML({ analysis, clientName }: PrintData): string {
-  const fc = (v: number) => formatCurrency(v, analysis.display_currency);
-  const fcTRY = (v: number) => formatCurrency(v, 'TRY');
-  const rate = analysis.exchange_rate || 1;
+  const disp = analysis.display_currency;
+  const orderCur = analysis.order_items_currency || disp;
+  const invCur = analysis.invoice_currency || disp;
+  const costCur = analysis.cost_currency || 'TRY';
 
-  const totalCostsTRY = analysis.cost_breakdown.reduce((s, i) => s + (i.amountTry || 0), 0);
-  const totalCostsDisplay = rate > 0 ? totalCostsTRY / rate : 0;
+  const fc = (v: number) => formatCurrency(v, disp);
+  const fcOrder = (v: number) => formatCurrency(v, orderCur);
+  const fcInvoice = (v: number) => formatCurrency(v, invCur);
+  const fcCost = (v: number) => formatCurrency(v, costCur);
+
+  // Use stored totals (already converted to display currency when saved)
+  const totalCostsOriginal = analysis.cost_breakdown.reduce((s, i) => s + (i.amountTry || 0), 0);
+  const totalCostsDisplay = analysis.total_costs;
+  const costToDisplayRate = totalCostsOriginal > 0 ? totalCostsDisplay / totalCostsOriginal : 1;
 
   const orderItemsHtml = analysis.order_items
     .map(
@@ -34,8 +42,8 @@ export function generateOrderAnalysisPrintHTML({ analysis, clientName }: PrintDa
         <td>${escapeHtml(item.description)}</td>
         <td>${escapeHtml(item.category)}</td>
         <td class="right">${item.quantity}</td>
-        <td class="right">${fc(item.unitPrice)}</td>
-        <td class="right">${fc(item.amount)}</td>
+        <td class="right">${fcOrder(item.unitPrice)}</td>
+        <td class="right">${fcOrder(item.amount)}</td>
       </tr>`
     )
     .join('');
@@ -47,9 +55,9 @@ export function generateOrderAnalysisPrintHTML({ analysis, clientName }: PrintDa
       (item) => `
       <tr>
         <td>${escapeHtml(item.product)}</td>
-        <td class="right">${fc(item.totalRevenue * item.firstPaymentPct / 100)}</td>
-        <td class="right">${fc(item.totalRevenue * item.secondPaymentPct / 100)}</td>
-        <td class="right">${fc(item.totalRevenue)}</td>
+        <td class="right">${fcInvoice(item.totalRevenue * item.firstPaymentPct / 100)}</td>
+        <td class="right">${fcInvoice(item.totalRevenue * item.secondPaymentPct / 100)}</td>
+        <td class="right">${fcInvoice(item.totalRevenue)}</td>
       </tr>`
     )
     .join('');
@@ -66,21 +74,23 @@ export function generateOrderAnalysisPrintHTML({ analysis, clientName }: PrintDa
 
   const costBreakdownHtml = analysis.cost_breakdown
     .map((item) => {
-      const converted = rate > 0 ? item.amountTry / rate : 0;
-      const pctCosts = totalCostsTRY > 0 ? ((item.amountTry / totalCostsTRY) * 100).toFixed(1) : '0.0';
+      const converted = item.amountTry * costToDisplayRate;
+      const pctCosts = totalCostsOriginal > 0 ? ((item.amountTry / totalCostsOriginal) * 100).toFixed(1) : '0.0';
       const pctRevenue =
         analysis.total_revenue > 0 ? ((converted / analysis.total_revenue) * 100).toFixed(1) : '0.0';
+      const showConverted = costCur !== disp;
       return `
       <tr>
         <td>${escapeHtml(item.category)}</td>
-        <td class="right">${fcTRY(item.amountTry)}</td>
-        <td class="right">${fc(converted)}</td>
+        <td class="right">${fcCost(item.amountTry)}</td>
+        ${showConverted ? `<td class="right">${fc(converted)}</td>` : ''}
         <td class="right">${pctCosts}%</td>
         <td class="right">${pctRevenue}%</td>
       </tr>`;
     })
     .join('');
 
+  const showCostConverted = costCur !== disp;
   const costRevPct =
     analysis.total_revenue > 0 ? ((totalCostsDisplay / analysis.total_revenue) * 100).toFixed(1) : '0.0';
 
@@ -147,7 +157,7 @@ export function generateOrderAnalysisPrintHTML({ analysis, clientName }: PrintDa
   <div class="header">
     <h1>ORDER ANALYSIS REPORT</h1>
     <div class="subtitle">${escapeHtml(clientName)} — ${escapeHtml(analysis.invoice_ref || 'N/A')}</div>
-    <div class="meta">Date: ${escapeHtml(analysis.analysis_date)} | Supplier: ${escapeHtml(analysis.supplier || 'N/A')} | Rate: 1 ${escapeHtml(analysis.display_currency)} = ${rate.toFixed(2)} TRY</div>
+    <div class="meta">Date: ${escapeHtml(analysis.analysis_date)} | Supplier: ${escapeHtml(analysis.supplier || 'N/A')} | Summary in ${escapeHtml(disp)}</div>
   </div>
 
   <div class="summary-grid">
@@ -172,11 +182,11 @@ export function generateOrderAnalysisPrintHTML({ analysis, clientName }: PrintDa
     <div class="section-title">Order Items</div>
     <table>
       <thead><tr>
-        <th>Description</th><th>Category</th><th class="right">QTY</th><th class="right">Unit Price</th><th class="right">Amount (${escapeHtml(analysis.display_currency)})</th>
+        <th>Description</th><th>Category</th><th class="right">QTY</th><th class="right">Unit Price (${escapeHtml(orderCur)})</th><th class="right">Amount (${escapeHtml(orderCur)})</th>
       </tr></thead>
       <tbody>${orderItemsHtml}</tbody>
       <tfoot><tr>
-        <td colspan="2"><strong>ORDER TOTAL</strong></td><td class="right"><strong>${totalQty}</strong></td><td></td><td class="right"><strong>${fc(analysis.total_revenue)}</strong></td>
+        <td colspan="2"><strong>ORDER TOTAL</strong></td><td class="right"><strong>${totalQty}</strong></td><td></td><td class="right"><strong>${fcOrder(analysis.order_items.reduce((s, i) => s + i.amount, 0))}</strong></td>
       </tr></tfoot>
     </table>
   </div>
@@ -190,7 +200,7 @@ export function generateOrderAnalysisPrintHTML({ analysis, clientName }: PrintDa
       </tr></thead>
       <tbody>${invoiceBreakdownHtml}</tbody>
       <tfoot><tr>
-        <td><strong>TOTAL</strong></td><td class="right"><strong>${fc(invoiceFirst)}</strong></td><td class="right"><strong>${fc(invoiceSecond)}</strong></td><td class="right"><strong>${fc(invoiceTotalRevenue)}</strong></td>
+        <td><strong>TOTAL</strong></td><td class="right"><strong>${fcInvoice(invoiceFirst)}</strong></td><td class="right"><strong>${fcInvoice(invoiceSecond)}</strong></td><td class="right"><strong>${fcInvoice(invoiceTotalRevenue)}</strong></td>
       </tr></tfoot>
     </table>
   </div>` : ''}
@@ -200,11 +210,11 @@ export function generateOrderAnalysisPrintHTML({ analysis, clientName }: PrintDa
     <div class="section-title">Cost Breakdown</div>
     <table>
       <thead><tr>
-        <th>Category</th><th class="right">Amount (TRY)</th><th class="right">Amount (${escapeHtml(analysis.display_currency)})</th><th class="right">% of Costs</th><th class="right">% of Revenue</th>
+        <th>Category</th><th class="right">Amount (${escapeHtml(costCur)})</th>${showCostConverted ? `<th class="right">Amount (${escapeHtml(disp)})</th>` : ''}<th class="right">% of Costs</th><th class="right">% of Revenue</th>
       </tr></thead>
       <tbody>${costBreakdownHtml}</tbody>
       <tfoot><tr>
-        <td><strong>TOTAL EXPENSES</strong></td><td class="right"><strong>${fcTRY(totalCostsTRY)}</strong></td><td class="right"><strong>${fc(totalCostsDisplay)}</strong></td><td class="right"><strong>100.0%</strong></td><td class="right"><strong>${costRevPct}%</strong></td>
+        <td><strong>TOTAL EXPENSES</strong></td><td class="right"><strong>${fcCost(totalCostsOriginal)}</strong></td>${showCostConverted ? `<td class="right"><strong>${fc(totalCostsDisplay)}</strong></td>` : ''}<td class="right"><strong>100.0%</strong></td><td class="right"><strong>${costRevPct}%</strong></td>
       </tr></tfoot>
     </table>
   </div>` : ''}

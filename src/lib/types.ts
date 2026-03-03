@@ -202,8 +202,7 @@ export const PRODUCTION_STAGES: { value: ProductionStage; label: string; color: 
   { value: 'embroidery', label: 'Embroidery', color: 'bg-pink-500' },
   { value: 'sewing', label: 'Sewing', color: 'bg-orange-500' },
   { value: 'wash_house', label: 'Wash House', color: 'bg-cyan-500' },
-  { value: 'qc', label: 'QC', color: 'bg-yellow-500' },
-  { value: 'packaging', label: 'Packaging', color: 'bg-green-500' },
+  { value: 'qc', label: 'QC & Packaging', color: 'bg-yellow-500' },
   { value: 'shipping', label: 'Shipping', color: 'bg-sky-500' },
   { value: 'delivered', label: 'Delivered', color: 'bg-emerald-500' },
 ];
@@ -218,7 +217,7 @@ export const SAMPLE_PRODUCTION_STAGES = PRODUCTION_STAGES.filter(
   s => true // includes all stages
 );
 
-// Dashboard display stages - combines QC & Packaging into one column
+// Dashboard display stages - QC & Packaging already combined in PRODUCTION_STAGES
 export interface DisplayStage {
   value: ProductionStage | 'qc_packaging';
   label: string;
@@ -227,24 +226,17 @@ export interface DisplayStage {
 }
 
 const createDashboardStages = (stages: typeof PRODUCTION_STAGES): DisplayStage[] => {
-  const result: DisplayStage[] = [];
-  for (const stage of stages) {
+  return stages.map((stage) => {
     if (stage.value === 'qc') {
-      // Combine QC and Packaging
-      result.push({
-        value: 'qc_packaging',
+      return {
+        value: 'qc_packaging' as const,
         label: 'QC & Packaging',
         color: 'bg-yellow-500',
-        combinedStages: ['qc', 'packaging'],
-      });
-    } else if (stage.value === 'packaging') {
-      // Skip packaging as it's combined with QC
-      continue;
-    } else {
-      result.push(stage);
+        combinedStages: ['qc', 'packaging'] as ProductionStage[],
+      };
     }
-  }
-  return result;
+    return stage;
+  });
 };
 
 export const BULK_DASHBOARD_STAGES = createDashboardStages(BULK_PRODUCTION_STAGES);
@@ -301,8 +293,13 @@ export const CLIENT_VISIBLE_STAGES = PRODUCTION_STAGES.filter(
   s => s.value !== 'not_started' && s.value !== 'sample'
 );
 
+// Normalize stage: DB still has separate 'packaging' value, map it to 'qc' for display
+export function normalizeStage(stage: ProductionStage): ProductionStage {
+  return stage === 'packaging' ? 'qc' : stage;
+}
+
 export function getStageIndex(stage: ProductionStage): number {
-  return PRODUCTION_STAGES.findIndex(s => s.value === stage);
+  return PRODUCTION_STAGES.findIndex(s => s.value === normalizeStage(stage));
 }
 
 export function getStageProgress(stage: ProductionStage): number {
@@ -316,7 +313,8 @@ export function getClientStageProgress(stage: ProductionStage): number {
   if (stage === 'not_started' || stage === 'sample') {
     return 0;
   }
-  const index = CLIENT_VISIBLE_STAGES.findIndex(s => s.value === stage);
+  const normalized = normalizeStage(stage);
+  const index = CLIENT_VISIBLE_STAGES.findIndex(s => s.value === normalized);
   if (index === -1) return 0;
   return Math.round(((index + 1) / CLIENT_VISIBLE_STAGES.length) * 100);
 }
@@ -361,6 +359,9 @@ export interface OrderAnalysis {
   supplier: string | null;
   exchange_rate: number;
   display_currency: string;
+  order_items_currency?: string;
+  invoice_currency?: string;
+  cost_currency?: string;
   analysis_date: string;
   notes: string | null;
   order_items: OrderAnalysisOrderItem[];
