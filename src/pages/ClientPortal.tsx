@@ -27,6 +27,18 @@ import {
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, type Order, type OrderNote } from '@/lib/types';
+
+const STAGE_SHORT_LABELS: Record<string, string> = {
+  cutting: 'Cut',
+  printing: 'Print',
+  embroidery: 'Emb',
+  sewing: 'Sew',
+  wash_house: 'Wash',
+  qc: 'QC',
+  packaging: 'Pack',
+  shipping: 'Ship',
+  delivered: 'Done',
+};
 import {
   CLIENT_STAGE_IMAGE_STAGES,
   STAGE_IMAGE_LABELS,
@@ -411,44 +423,37 @@ export default function ClientPortal() {
                           </div>
 
                           {/* Stage Progress Visualization */}
-                          <div className="mt-6 overflow-x-auto">
-                            <div className="flex items-center gap-1 min-w-max">
+                          <div className="mt-6 overflow-x-auto py-1">
+                            <div className="flex items-center min-w-max px-1">
                               {CLIENT_VISIBLE_STAGES.map((stage, index) => {
                                 const isActive = order.current_stage === stage.value;
                                 const currentIndex = CLIENT_VISIBLE_STAGES.findIndex(s => s.value === order.current_stage);
                                 const isPast = currentIndex > index;
                                 const isInInternalStage = order.current_stage === 'not_started' || order.current_stage === 'sample';
-                                
+
                                 return (
                                   <div key={stage.value} className="flex items-center">
-                                    <div
-                                      className={`
-                                        flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium
-                                        ${isActive ? `${stage.color} text-white ring-2 ring-offset-2 ring-primary` : ''}
-                                        ${isPast && !isInInternalStage ? 'bg-primary text-primary-foreground' : ''}
-                                        ${!isActive && (!isPast || isInInternalStage) ? 'bg-muted text-muted-foreground' : ''}
-                                      `}
-                                    >
-                                      {isPast && !isInInternalStage ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                                    <div className="flex flex-col items-center gap-1.5">
+                                      <div
+                                        className={`
+                                          flex items-center justify-center w-9 h-9 rounded-full text-xs font-semibold shrink-0
+                                          ${isActive ? `${stage.color} text-white ring-2 ring-offset-2 ring-offset-background ring-primary` : ''}
+                                          ${isPast && !isInInternalStage ? 'bg-primary text-primary-foreground' : ''}
+                                          ${!isActive && (!isPast || isInInternalStage) ? 'bg-muted text-muted-foreground' : ''}
+                                        `}
+                                      >
+                                        {isPast && !isInInternalStage ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                                      </div>
+                                      <span className={`text-[10px] leading-none ${isActive ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                                        {STAGE_SHORT_LABELS[stage.value] || stage.label}
+                                      </span>
                                     </div>
                                     {index < CLIENT_VISIBLE_STAGES.length - 1 && (
-                                      <div className={`w-6 h-0.5 ${isPast && !isInInternalStage ? 'bg-primary' : 'bg-muted'}`} />
+                                      <div className={`w-5 h-0.5 mx-0.5 mt-[-18px] ${isPast && !isInInternalStage ? 'bg-primary' : 'bg-muted'}`} />
                                     )}
                                   </div>
                                 );
                               })}
-                            </div>
-                            <div className="flex items-center gap-1 min-w-max mt-1">
-                              {CLIENT_VISIBLE_STAGES.map((stage, index) => (
-                                <div key={stage.value} className="flex items-center">
-                                  <div className="w-8 text-center">
-                                    <span className="text-[10px] text-muted-foreground leading-none">
-                                      {stage.label.slice(0, 3)}
-                                    </span>
-                                  </div>
-                                  {index < CLIENT_VISIBLE_STAGES.length - 1 && <div className="w-6" />}
-                                </div>
-                              ))}
                             </div>
                           </div>
 
@@ -671,47 +676,38 @@ export default function ClientPortal() {
                           </Button>
                         </div>
 
-                        {/* Stage Progress Visualization - Client View (excludes not_started and sample) */}
-                        <div className="mt-6 overflow-x-auto">
-                          <div className="flex items-center gap-1 min-w-max">
+                        {/* Stage Progress Visualization - Client View */}
+                        <div className="mt-6 overflow-x-auto py-1">
+                          <div className="flex items-center min-w-max px-1">
                             {CLIENT_VISIBLE_STAGES.map((stage, index) => {
                               const isActive = order.current_stage === stage.value;
-                              // For internal stages (not_started, sample), treat as not yet reached
                               const currentIndex = CLIENT_VISIBLE_STAGES.findIndex(s => s.value === order.current_stage);
                               const isPast = currentIndex > index;
-                              // If order is in not_started or sample, nothing is past yet
                               const isInInternalStage = order.current_stage === 'not_started' || order.current_stage === 'sample';
-                              
+
                               return (
                                 <div key={stage.value} className="flex items-center">
-                                  <div
-                                    className={`
-                                      flex items-center justify-center w-8 h-8 rounded-full text-xs font-medium
-                                      ${isActive ? `${stage.color} text-white ring-2 ring-offset-2 ring-primary` : ''}
-                                      ${isPast && !isInInternalStage ? 'bg-primary text-primary-foreground' : ''}
-                                      ${!isActive && (!isPast || isInInternalStage) ? 'bg-muted text-muted-foreground' : ''}
-                                    `}
-                                  >
-                                    {isPast && !isInInternalStage ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                                  <div className="flex flex-col items-center gap-1.5">
+                                    <div
+                                      className={`
+                                        flex items-center justify-center w-9 h-9 rounded-full text-xs font-semibold shrink-0
+                                        ${isActive ? `${stage.color} text-white ring-2 ring-offset-2 ring-offset-background ring-primary` : ''}
+                                        ${isPast && !isInInternalStage ? 'bg-primary text-primary-foreground' : ''}
+                                        ${!isActive && (!isPast || isInInternalStage) ? 'bg-muted text-muted-foreground' : ''}
+                                      `}
+                                    >
+                                      {isPast && !isInInternalStage ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+                                    </div>
+                                    <span className={`text-[10px] leading-none ${isActive ? 'text-foreground font-medium' : 'text-muted-foreground'}`}>
+                                      {STAGE_SHORT_LABELS[stage.value] || stage.label}
+                                    </span>
                                   </div>
                                   {index < CLIENT_VISIBLE_STAGES.length - 1 && (
-                                    <div className={`w-6 h-0.5 ${isPast && !isInInternalStage ? 'bg-primary' : 'bg-muted'}`} />
+                                    <div className={`w-5 h-0.5 mx-0.5 mt-[-18px] ${isPast && !isInInternalStage ? 'bg-primary' : 'bg-muted'}`} />
                                   )}
                                 </div>
                               );
                             })}
-                          </div>
-                          <div className="flex items-center gap-1 min-w-max mt-1">
-                            {CLIENT_VISIBLE_STAGES.map((stage, index) => (
-                              <div key={stage.value} className="flex items-center">
-                                <div className="w-8 text-center">
-                                  <span className="text-[10px] text-muted-foreground leading-none">
-                                    {stage.label.slice(0, 3)}
-                                  </span>
-                                </div>
-                                {index < CLIENT_VISIBLE_STAGES.length - 1 && <div className="w-6" />}
-                              </div>
-                            ))}
                           </div>
                         </div>
 
