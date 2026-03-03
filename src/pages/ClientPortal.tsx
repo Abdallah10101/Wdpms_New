@@ -7,8 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Progress } from '@/components/ui/progress';
-
+import { Textarea } from '@/components/ui/textarea';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { InvoiceViewer, Invoice, InvoiceStatus } from '@/components/invoices/InvoiceViewer';
 import {
@@ -24,6 +27,7 @@ import {
   Printer,
   Sparkles,
   Waves,
+  Send,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, type Order, type OrderNote } from '@/lib/types';
@@ -74,8 +78,9 @@ const INVOICE_STATUS_LABELS: Record<InvoiceStatus, string> = {
 export default function ClientPortal() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { user, role, isLoading: authLoading } = useAuth();
-  
+  const { user, role, profile, isLoading: authLoading } = useAuth();
+  const { toast } = useToast();
+
   const [client, setClient] = useState<ClientData | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [recentNotes, setRecentNotes] = useState<(OrderNote & { order?: Order })[]>([]);
@@ -86,6 +91,9 @@ export default function ClientPortal() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [invoiceViewerOpen, setInvoiceViewerOpen] = useState(false);
+  const [newMessage, setNewMessage] = useState('');
+  const [selectedOrderId, setSelectedOrderId] = useState('');
+  const [isSendingMessage, setIsSendingMessage] = useState(false);
 
   // Redirect non-clients to dashboard
   useEffect(() => {
@@ -243,6 +251,36 @@ export default function ClientPortal() {
   const activeOrders = orders.filter(o => o.current_stage !== 'delivered');
   const completedOrders = orders.filter(o => o.current_stage === 'delivered');
   const activeTab = searchParams.get('tab') || 'dashboard';
+
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !selectedOrderId || isSendingMessage) return;
+    setIsSendingMessage(true);
+
+    try {
+      const { error } = await supabase
+        .from('order_notes')
+        .insert({
+          order_id: selectedOrderId,
+          content: newMessage.trim(),
+          author_id: user?.id,
+          is_client_visible: true,
+          author_name: profile?.full_name || client?.name || user?.email || 'Client',
+          author_role: 'client',
+        } as any);
+
+      if (error) throw error;
+
+      setNewMessage('');
+      toast({ title: 'Message Sent', description: 'Your message has been sent to the team.' });
+      // Refresh notes
+      fetchClientData();
+    } catch (error) {
+      console.error('Error sending message:', error);
+      toast({ title: 'Error', description: 'Failed to send message.', variant: 'destructive' });
+    } finally {
+      setIsSendingMessage(false);
+    }
+  };
 
   if (authLoading || !user) {
     return null;
@@ -533,6 +571,9 @@ export default function ClientPortal() {
                           {(note as any).author_role === 'team' && (
                             <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0">Team</Badge>
                           )}
+                          {(note as any).author_role === 'client' && (
+                            <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0">Client</Badge>
+                          )}
                         </div>
                         <p className="text-sm text-muted-foreground line-clamp-2">{note.content}</p>
                       </div>
@@ -792,12 +833,58 @@ export default function ClientPortal() {
         )}
 
         {activeTab === 'updates' && (
-          <div>
+          <div className="space-y-4">
+            {/* Send Message Form */}
+            {orders.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <Send className="h-4 w-4" />
+                    Send a Message
+                  </CardTitle>
+                  <CardDescription>
+                    Send a message to your production team about an order
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Select value={selectedOrderId} onValueChange={setSelectedOrderId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select an order..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {orders.map((order) => (
+                        <SelectItem key={order.id} value={order.id}>
+                          {order.order_number} — {(order as any).product_name || 'Order'}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    placeholder="Type your message..."
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    className="min-h-[80px] resize-none"
+                  />
+                  <div className="flex justify-end">
+                    <Button
+                      size="sm"
+                      onClick={handleSendMessage}
+                      disabled={!newMessage.trim() || !selectedOrderId || isSendingMessage}
+                    >
+                      <Send className="mr-2 h-4 w-4" />
+                      {isSendingMessage ? 'Sending...' : 'Send Message'}
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Messages List */}
             {recentNotes.length === 0 ? (
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-12">
                   <MessageSquare className="h-12 w-12 text-muted-foreground/50" />
-                  <p className="mt-4 text-muted-foreground">No updates yet</p>
+                  <p className="mt-4 text-muted-foreground">No messages yet. Send one above!</p>
                 </CardContent>
               </Card>
             ) : (
@@ -805,10 +892,10 @@ export default function ClientPortal() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <MessageSquare className="h-5 w-5" />
-                    Recent Updates
+                    Messages
                   </CardTitle>
                   <CardDescription>
-                    Latest messages from your production team
+                    Conversations with your production team
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -833,6 +920,9 @@ export default function ClientPortal() {
                             )}
                             {(note as any).author_role === 'team' && (
                               <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0">Team</Badge>
+                            )}
+                            {(note as any).author_role === 'client' && (
+                              <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0">Client</Badge>
                             )}
                           </div>
                           <p className="text-sm whitespace-pre-wrap">{note.content}</p>

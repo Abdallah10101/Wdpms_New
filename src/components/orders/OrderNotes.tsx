@@ -26,25 +26,34 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const isClient = role === 'client';
+
   useEffect(() => {
     fetchNotes();
   }, [orderId]);
 
   const fetchNotes = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('order_notes')
         .select('*')
         .eq('order_id', orderId)
         .order('created_at', { ascending: false });
 
+      // Clients only see client-visible notes
+      if (isClient) {
+        query = query.eq('is_client_visible', true);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
-      
-      // Fetch author profiles separately
+
+      // Fetch author profiles separately (may fail for clients due to RLS — that's OK, we use stored fields)
       const authorIds = [...new Set(data?.map(n => n.author_id).filter(Boolean) || [])];
       let profilesMap: Record<string, any> = {};
-      
-      if (authorIds.length > 0) {
+
+      if (authorIds.length > 0 && !isClient) {
         const { data: profiles } = await supabase
           .from('profiles')
           .select('user_id, full_name, avatar_url')
@@ -66,7 +75,7 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
         ...note,
         author: note.author_id ? profilesMap[note.author_id] : null,
       }));
-      
+
       setNotes(notesWithAuthors as OrderNote[]);
     } catch (error) {
       console.error('Error fetching notes:', error);
@@ -86,7 +95,7 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
           order_id: orderId,
           content: newNote.trim(),
           author_id: user?.id,
-          is_client_visible: isClientVisible,
+          is_client_visible: isClient ? true : isClientVisible,
           author_name: profile?.full_name || user?.email || 'Unknown',
           author_role: role || 'team',
         } as any);
@@ -160,13 +169,13 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
     }
   };
 
-  const canAddNotes = role === 'admin' || role === 'team';
+  const canAddNotes = role === 'admin' || role === 'team' || role === 'client';
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <MessageSquare className="h-5 w-5 text-primary" />
-        <h3 className="font-semibold">Comments</h3>
+        <h3 className="font-semibold">{isClient ? 'Messages' : 'Comments'}</h3>
         <Badge variant="secondary" className="text-xs">
           {notes.length}
         </Badge>
@@ -183,30 +192,34 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
             </Avatar>
             <div className="flex-1 space-y-2">
               <Textarea
-                placeholder="Add a comment..."
+                placeholder={isClient ? "Send a message..." : "Add a comment..."}
                 value={newNote}
                 onChange={(e) => setNewNote(e.target.value)}
                 className="min-h-[80px] resize-none"
               />
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Checkbox
-                    id="client-visible"
-                    checked={isClientVisible}
-                    onCheckedChange={(checked) => setIsClientVisible(checked as boolean)}
-                  />
-                  <label
-                    htmlFor="client-visible"
-                    className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer"
-                  >
-                    {isClientVisible ? (
-                      <Eye className="h-4 w-4" />
-                    ) : (
-                      <EyeOff className="h-4 w-4" />
-                    )}
-                    Visible to client
-                  </label>
-                </div>
+                {!isClient ? (
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="client-visible"
+                      checked={isClientVisible}
+                      onCheckedChange={(checked) => setIsClientVisible(checked as boolean)}
+                    />
+                    <label
+                      htmlFor="client-visible"
+                      className="flex items-center gap-1 text-sm text-muted-foreground cursor-pointer"
+                    >
+                      {isClientVisible ? (
+                        <Eye className="h-4 w-4" />
+                      ) : (
+                        <EyeOff className="h-4 w-4" />
+                      )}
+                      Visible to client
+                    </label>
+                  </div>
+                ) : (
+                  <div />
+                )}
                 <Button
                   size="sm"
                   onClick={handleSubmit}
@@ -249,19 +262,24 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
                     {((note.author as any)?.role || (note as any).author_role) === 'team' && (
                       <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0">Team</Badge>
                     )}
+                    {((note.author as any)?.role || (note as any).author_role) === 'client' && (
+                      <Badge className="bg-yellow-500 text-white text-[10px] px-1.5 py-0">Client</Badge>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(note.created_at), 'MMM d, yyyy h:mm a')}
                     </span>
-                    {note.is_client_visible ? (
-                      <Badge variant="outline" className="text-xs text-green-600 border-green-300">
-                        <Eye className="h-3 w-3 mr-1" />
-                        Client visible
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="text-xs text-muted-foreground">
-                        <EyeOff className="h-3 w-3 mr-1" />
-                        Internal
-                      </Badge>
+                    {!isClient && (
+                      note.is_client_visible ? (
+                        <Badge variant="outline" className="text-xs text-green-600 border-green-300">
+                          <Eye className="h-3 w-3 mr-1" />
+                          Client visible
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-xs text-muted-foreground">
+                          <EyeOff className="h-3 w-3 mr-1" />
+                          Internal
+                        </Badge>
+                      )
                     )}
                   </div>
                   <p className="text-sm mt-1 whitespace-pre-wrap">{note.content}</p>
