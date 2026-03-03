@@ -454,7 +454,7 @@ export default function Settings() {
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Member Since</span>
-              <span>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString() : 'N/A'}</span>
+              <span>{profile?.created_at ? new Date(profile.created_at).toLocaleDateString('en-GB') : 'N/A'}</span>
             </div>
           </CardContent>
         </Card>
