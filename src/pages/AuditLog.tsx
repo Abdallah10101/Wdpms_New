@@ -46,6 +46,7 @@ const ACTION_CONFIG: Record<string, { label: string; icon: React.ReactNode; colo
   supplier_bulk_deleted:{ label: 'Bulk deleted suppliers', icon: <Trash2 className="h-4 w-4" />,  color: 'text-red-500' },
   csv_exported:         { label: 'Exported CSV',           icon: <Download className="h-4 w-4" />,   color: 'text-emerald-500' },
   invoice_created:      { label: 'Created invoice',        icon: <FileText className="h-4 w-4" />,   color: 'text-blue-500' },
+  invoice_deleted:      { label: 'Deleted invoice',        icon: <Trash2 className="h-4 w-4" />,     color: 'text-red-500' },
 };
 
 function describeActivity(entry: UnifiedEntry): string {
@@ -82,6 +83,8 @@ function describeActivity(entry: UnifiedEntry): string {
       return `Exported ${t} CSV (${entry.details?.count || 0} records)`;
     case 'invoice_created':
       return `Created invoice ${t}${entry.details?.client ? ` for ${entry.details.client}` : ''}`;
+    case 'invoice_deleted':
+      return `Deleted invoice ${t}${entry.details?.client ? ` (${entry.details.client})` : ''}`;
     default:
       return entry.action_type || 'Unknown action';
   }
@@ -173,13 +176,14 @@ export default function AuditLog() {
 
   const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
     try {
-      await (supabase.from as any)('activity_log').insert({
+      const { error } = await (supabase.from as any)('activity_log').insert({
         action_type: actionType,
         actor_id: user?.id,
         actor_name: profile?.full_name || user?.email || 'Unknown',
         target_name: targetName,
         details,
       });
+      if (error) console.error('Activity log insert error:', error);
     } catch (err) {
       console.error('Failed to log activity:', err);
     }
@@ -305,6 +309,7 @@ export default function AuditLog() {
 
                   // Activity log entry
                   const cfg = ACTION_CONFIG[entry.action_type || ''];
+                  const isInvoiceAction = entry.action_type === 'invoice_created' || entry.action_type === 'invoice_deleted';
                   return (
                     <div key={entry.id} className="flex items-center gap-4 px-6 py-3 hover:bg-muted/30 transition-colors">
                       <div className={`shrink-0 ${cfg?.color || 'text-muted-foreground'}`}>
@@ -314,6 +319,11 @@ export default function AuditLog() {
                         <p className="text-sm">{describeActivity(entry)}</p>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {cfg?.label || entry.action_type}
+                          {entry.details?.total != null && (
+                            <span className="ml-2 font-medium">
+                              — Total: {Number(entry.details.total).toFixed(2)}
+                            </span>
+                          )}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
@@ -322,6 +332,13 @@ export default function AuditLog() {
                           {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
                         </p>
                       </div>
+                      {isInvoiceAction && entry.action_type === 'invoice_created' && (
+                        <Link to="/invoices">
+                          <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" title="View in Invoices">
+                            <ExternalLink className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      )}
                     </div>
                   );
                 })}

@@ -227,13 +227,14 @@ export default function Leads() {
 
   const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
     try {
-      await (supabase.from as any)('activity_log').insert({
+      const { error } = await (supabase.from as any)('activity_log').insert({
         action_type: actionType,
         actor_id: user?.id,
         actor_name: profile?.full_name || user?.email || 'Unknown',
         target_name: targetName,
         details,
       });
+      if (error) console.error('Activity log insert error:', error);
     } catch (err) {
       console.error('Failed to log activity:', err);
     }

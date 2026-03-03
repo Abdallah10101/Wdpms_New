@@ -27,7 +27,9 @@ import {
   Download,
   DollarSign,
   RefreshCw,
+  Trash2,
 } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { format } from 'date-fns';
 
@@ -77,6 +79,7 @@ export default function Invoices() {
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [deleteInvoice, setDeleteInvoice] = useState<Invoice | null>(null);
 
   // Currency
   const [displayCurrency, setDisplayCurrency] = useState('EUR');
@@ -240,15 +243,38 @@ export default function Invoices() {
 
   const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
     try {
-      await (supabase.from as any)('activity_log').insert({
+      const { error } = await (supabase.from as any)('activity_log').insert({
         action_type: actionType,
         actor_id: user?.id,
         actor_name: profile?.full_name || user?.email || 'Unknown',
         target_name: targetName,
         details,
       });
+      if (error) console.error('Activity log insert error:', error);
     } catch (err) {
       console.error('Failed to log activity:', err);
+    }
+  };
+
+  const handleDeleteInvoice = async (invoice: Invoice) => {
+    try {
+      // Delete invoice items first
+      await supabase.from('invoice_items').delete().eq('invoice_id', invoice.id);
+      // Delete invoice
+      const { error } = await supabase.from('invoices').delete().eq('id', invoice.id);
+      if (error) throw error;
+
+      await logActivity('invoice_deleted', invoice.invoice_number, {
+        client: invoice.client?.brand_name || invoice.client?.name || '',
+        total: invoice.wholesale_price * invoice.quantity,
+      });
+
+      toast({ title: 'Invoice Deleted', description: `Invoice ${invoice.invoice_number} has been deleted.` });
+      setDeleteInvoice(null);
+      fetchInvoices();
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      toast({ title: 'Error', description: 'Failed to delete invoice.', variant: 'destructive' });
     }
   };
 
@@ -539,6 +565,16 @@ export default function Invoices() {
                                 Record Payment
                               </DropdownMenuItem>
                             )}
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteInvoice(invoice);
+                              }}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -565,28 +601,25 @@ export default function Invoices() {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onSuccess={async (invoiceInfo) => {
-          await fetchInvoices();
+          // Log activity first before fetching
           if (invoiceInfo) {
-            logActivity('invoice_created', invoiceInfo.invoice_number, {
+            await logActivity('invoice_created', invoiceInfo.invoice_number, {
+              invoice_id: invoiceInfo.id,
               client: invoiceInfo.client_name,
               total: invoiceInfo.total,
             });
+          }
+          await fetchInvoices();
+          if (invoiceInfo) {
             // Auto-open the newly created invoice for preview
-            const created = invoices.find(i => i.id === invoiceInfo.id);
-            if (created) {
-              setSelectedInvoice(created);
+            const { data } = await supabase
+              .from('invoices')
+              .select('*, client:clients(name, brand_name, address), order:orders(order_number, product_name)')
+              .eq('id', invoiceInfo.id)
+              .single();
+            if (data) {
+              setSelectedInvoice(data as unknown as Invoice);
               setViewerOpen(true);
-            } else {
-              // invoices state may not have updated yet, fetch and find
-              const { data } = await supabase
-                .from('invoices')
-                .select('*, client:clients(name, brand_name, address), order:orders(order_number, product_name)')
-                .eq('id', invoiceInfo.id)
-                .single();
-              if (data) {
-                setSelectedInvoice(data as unknown as Invoice);
-                setViewerOpen(true);
-              }
             }
           }
         }}
@@ -633,6 +666,28 @@ export default function Invoices() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Invoice Confirmation */}
+      <AlertDialog open={!!deleteInvoice} onOpenChange={(open) => !open && setDeleteInvoice(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Invoice</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete invoice <strong>{deleteInvoice?.invoice_number}</strong>?
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteInvoice && handleDeleteInvoice(deleteInvoice)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }
