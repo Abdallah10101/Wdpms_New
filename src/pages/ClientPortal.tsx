@@ -33,15 +33,15 @@ import { format, formatDistanceToNow } from 'date-fns';
 import { PRODUCTION_STAGES, getClientVisibleStagesForOrder, getClientStageProgressForOrder, normalizeStage, type Order, type OrderNote } from '@/lib/types';
 
 const STAGE_SHORT_LABELS: Record<string, string> = {
-  cutting: 'Cut',
-  printing: 'Print',
-  embroidery: 'Emb',
-  sewing: 'Sew',
-  wash_house: 'Wash',
-  qc: 'QC&Pack',
-  packaging: 'QC&Pack',
-  shipping: 'Ship',
-  delivered: 'Done',
+  cutting: 'Cutting',
+  printing: 'Printing',
+  embroidery: 'Embroidery',
+  sewing: 'Sewing',
+  wash_house: 'Wash House',
+  qc: 'QC & Pack',
+  packaging: 'QC & Pack',
+  shipping: 'Shipping',
+  delivered: 'Delivered',
 };
 import {
   CLIENT_STAGE_IMAGE_STAGES,
