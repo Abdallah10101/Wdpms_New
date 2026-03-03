@@ -11,7 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   History, ExternalLink, Download, UserX, UserCheck, UserPlus,
-  ShieldAlert, ArrowRightLeft, Building2, Pencil, Trash2, Truck, FileText,
+  ShieldAlert, ArrowRightLeft, Building2, Pencil, Trash2, Truck, FileText, MessageSquare,
 } from 'lucide-react';
 import { PRODUCTION_STAGES } from '@/lib/types';
 import { format } from 'date-fns';
@@ -48,6 +48,7 @@ const ACTION_CONFIG: Record<string, { label: string; icon: React.ReactNode; colo
   csv_exported:         { label: 'Exported CSV',           icon: <Download className="h-4 w-4" />,   color: 'text-emerald-500' },
   invoice_created:      { label: 'Created invoice',        icon: <FileText className="h-4 w-4" />,   color: 'text-blue-500' },
   invoice_deleted:      { label: 'Deleted invoice',        icon: <Trash2 className="h-4 w-4" />,     color: 'text-red-500' },
+  note_deleted:         { label: 'Deleted note',           icon: <MessageSquare className="h-4 w-4" />, color: 'text-red-500' },
 };
 
 function describeActivity(entry: UnifiedEntry): string {
@@ -86,6 +87,8 @@ function describeActivity(entry: UnifiedEntry): string {
       return `Created invoice ${t}${entry.details?.client ? ` for ${entry.details.client}` : ''}`;
     case 'invoice_deleted':
       return `Deleted invoice ${t}${entry.details?.client ? ` (${entry.details.client})` : ''}`;
+    case 'note_deleted':
+      return `Deleted note on order${entry.details?.was_client_visible ? ' (was client-visible)' : ''}${entry.details?.content_preview ? `: "${entry.details.content_preview}"` : ''}`;
     default:
       return entry.action_type || 'Unknown action';
   }

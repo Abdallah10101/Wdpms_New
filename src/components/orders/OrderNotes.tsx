@@ -113,7 +113,23 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
     }
   };
 
+  const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
+    try {
+      const { error } = await (supabase.from as any)('activity_log').insert({
+        action_type: actionType,
+        actor_id: user?.id,
+        actor_name: profile?.full_name || user?.email || 'Unknown',
+        target_name: targetName,
+        details,
+      });
+      if (error) console.error('Activity log insert error:', error);
+    } catch (e) {
+      console.error('Failed to log activity:', e);
+    }
+  };
+
   const handleDelete = async (noteId: string) => {
+    const note = notes.find(n => n.id === noteId);
     try {
       const { error } = await supabase
         .from('order_notes')
@@ -121,8 +137,15 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
         .eq('id', noteId);
 
       if (error) throw error;
+
+      await logActivity('note_deleted', orderId, {
+        content_preview: note?.content?.slice(0, 100) || '',
+        was_client_visible: note?.is_client_visible || false,
+        author: (note?.author as any)?.full_name || 'Unknown',
+      });
+
       fetchNotes();
-      
+
       toast({
         title: 'Note Deleted',
         description: 'The note has been removed.',
