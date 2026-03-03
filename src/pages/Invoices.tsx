@@ -564,7 +564,32 @@ export default function Invoices() {
       <CreateInvoiceDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
-        onSuccess={fetchInvoices}
+        onSuccess={async (invoiceInfo) => {
+          await fetchInvoices();
+          if (invoiceInfo) {
+            logActivity('invoice_created', invoiceInfo.invoice_number, {
+              client: invoiceInfo.client_name,
+              total: invoiceInfo.total,
+            });
+            // Auto-open the newly created invoice for preview
+            const created = invoices.find(i => i.id === invoiceInfo.id);
+            if (created) {
+              setSelectedInvoice(created);
+              setViewerOpen(true);
+            } else {
+              // invoices state may not have updated yet, fetch and find
+              const { data } = await supabase
+                .from('invoices')
+                .select('*, client:clients(name, brand_name, address), order:orders(order_number, product_name)')
+                .eq('id', invoiceInfo.id)
+                .single();
+              if (data) {
+                setSelectedInvoice(data as unknown as Invoice);
+                setViewerOpen(true);
+              }
+            }
+          }
+        }}
         currency={displayCurrency}
         exchangeRate={exchangeRate}
       />

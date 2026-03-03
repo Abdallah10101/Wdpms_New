@@ -55,10 +55,17 @@ interface InvoiceLineItem {
   unitPrice: number;
 }
 
+interface CreatedInvoiceInfo {
+  id: string;
+  invoice_number: string;
+  client_name: string;
+  total: number;
+}
+
 interface CreateInvoiceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: () => void;
+  onSuccess?: (invoice?: CreatedInvoiceInfo) => void;
   currency?: string;
   exchangeRate?: number;
 }
@@ -294,7 +301,12 @@ export function CreateInvoiceDialog({
       });
 
       onOpenChange(false);
-      onSuccess?.();
+      onSuccess?.({
+        id: invoice.id,
+        invoice_number: invoice.invoice_number,
+        client_name: selectedClient?.brand_name || selectedClient?.name || '',
+        total: subtotal,
+      });
 
       // Reset form
       setSelectedClientId('');
