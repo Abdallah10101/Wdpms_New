@@ -216,9 +216,15 @@ export default function AuditLog() {
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-mono text-sm font-medium text-primary">
-                              {entry.order?.order_number || 'Unknown Order'}
-                            </span>
+                            {entry.order_id ? (
+                              <Link to={`/orders/${entry.order_id}`} className="font-mono text-sm font-medium text-primary hover:underline">
+                                {entry.order?.order_number || 'Unknown Order'}
+                              </Link>
+                            ) : (
+                              <span className="font-mono text-sm font-medium text-primary">
+                                {entry.order?.order_number || 'Unknown Order'}
+                              </span>
+                            )}
                             <span className="text-sm text-muted-foreground truncate">
                               {entry.order?.product_name}
                             </span>
