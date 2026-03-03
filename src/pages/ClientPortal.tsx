@@ -126,10 +126,31 @@ export default function ClientPortal() {
           .limit(10);
 
         if (!notesError && notesData) {
-          // Attach order info to notes
+          // Fetch author profiles and roles for notes
+          const authorIds = [...new Set(notesData.map(n => n.author_id).filter(Boolean))];
+          let authorsMap: Record<string, { full_name: string; role?: string }> = {};
+          if (authorIds.length > 0) {
+            const { data: profiles } = await supabase
+              .from('profiles')
+              .select('user_id, full_name')
+              .in('user_id', authorIds);
+            const { data: roles } = await supabase
+              .from('user_roles')
+              .select('user_id, role')
+              .in('user_id', authorIds);
+            (profiles || []).forEach((p: any) => {
+              authorsMap[p.user_id] = { full_name: p.full_name };
+            });
+            (roles || []).forEach((r: any) => {
+              if (authorsMap[r.user_id]) authorsMap[r.user_id].role = r.role;
+            });
+          }
+
+          // Attach order info and author info to notes
           const notesWithOrders = notesData.map(note => ({
             ...note,
             order: ordersData.find(o => o.id === note.order_id),
+            authorProfile: note.author_id ? authorsMap[note.author_id] : null,
           }));
           setRecentNotes(notesWithOrders as any);
         }
@@ -518,6 +539,17 @@ export default function ClientPortal() {
                             {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
                           </span>
                         </div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium">
+                            {(note as any).authorProfile?.full_name || 'Team'}
+                          </span>
+                          {(note as any).authorProfile?.role === 'admin' && (
+                            <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0">Admin</Badge>
+                          )}
+                          {(note as any).authorProfile?.role === 'team' && (
+                            <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0">Team</Badge>
+                          )}
+                        </div>
                         <p className="text-sm text-muted-foreground line-clamp-2">{note.content}</p>
                       </div>
                     ))}
@@ -816,6 +848,17 @@ export default function ClientPortal() {
                             <span className="text-xs text-muted-foreground">
                               {formatDistanceToNow(new Date(note.created_at), { addSuffix: true })}
                             </span>
+                          </div>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-sm font-medium">
+                              {(note as any).authorProfile?.full_name || 'Team'}
+                            </span>
+                            {(note as any).authorProfile?.role === 'admin' && (
+                              <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0">Admin</Badge>
+                            )}
+                            {(note as any).authorProfile?.role === 'team' && (
+                              <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0">Team</Badge>
+                            )}
                           </div>
                           <p className="text-sm whitespace-pre-wrap">{note.content}</p>
                         </div>
