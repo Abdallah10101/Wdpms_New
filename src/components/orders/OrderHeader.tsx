@@ -252,18 +252,20 @@ export function OrderHeader({
           </div>
         )}
 
-        {/* Due Date */}
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground flex items-center gap-1">
-            <Calendar className="h-4 w-4" />
-            Due Date
-          </span>
-          <span className="text-sm font-medium">
-            {order.delivery_date
-              ? format(new Date(order.delivery_date), 'MMM d, yyyy')
-              : 'Empty'}
-          </span>
-        </div>
+        {/* Due Date — hidden from clients */}
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground flex items-center gap-1">
+              <Calendar className="h-4 w-4" />
+              Due Date
+            </span>
+            <span className="text-sm font-medium">
+              {order.delivery_date
+                ? format(new Date(order.delivery_date), 'MMM d, yyyy')
+                : 'Empty'}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
