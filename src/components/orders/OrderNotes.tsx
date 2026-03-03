@@ -49,12 +49,19 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
           .from('profiles')
           .select('user_id, full_name, avatar_url')
           .in('user_id', authorIds);
-        
+        const { data: rolesData } = await supabase
+          .from('user_roles')
+          .select('user_id, role')
+          .in('user_id', authorIds);
+
         profiles?.forEach(p => {
           profilesMap[p.user_id] = p;
         });
+        rolesData?.forEach(r => {
+          if (profilesMap[r.user_id]) profilesMap[r.user_id].role = r.role;
+        });
       }
-      
+
       const notesWithAuthors = (data || []).map(note => ({
         ...note,
         author: note.author_id ? profilesMap[note.author_id] : null,
@@ -213,13 +220,24 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
                     <span className="font-medium text-sm">
                       {(note.author as any)?.full_name || 'Unknown'}
                     </span>
+                    {(note.author as any)?.role === 'admin' && (
+                      <Badge className="bg-red-500 text-white text-[10px] px-1.5 py-0">Admin</Badge>
+                    )}
+                    {(note.author as any)?.role === 'team' && (
+                      <Badge className="bg-blue-500 text-white text-[10px] px-1.5 py-0">Team</Badge>
+                    )}
                     <span className="text-xs text-muted-foreground">
                       {format(new Date(note.created_at), 'MMM d, yyyy h:mm a')}
                     </span>
-                    {note.is_client_visible && (
-                      <Badge variant="outline" className="text-xs">
+                    {note.is_client_visible ? (
+                      <Badge variant="outline" className="text-xs text-green-600 border-green-300">
                         <Eye className="h-3 w-3 mr-1" />
                         Client visible
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                        <EyeOff className="h-3 w-3 mr-1" />
+                        Internal
                       </Badge>
                     )}
                   </div>
