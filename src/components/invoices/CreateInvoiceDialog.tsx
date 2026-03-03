@@ -51,8 +51,8 @@ interface InvoiceLineItem {
   productName: string;
   description: string;
   inclusions: string[];
-  quantity: number;
-  unitPrice: number;
+  quantity: number | '';
+  unitPrice: number | '';
 }
 
 interface CreatedInvoiceInfo {
@@ -222,7 +222,7 @@ export function CreateInvoiceDialog({
   };
 
   const calculateSubtotal = () => {
-    return lineItems.reduce((sum, item) => sum + (item.quantity * item.unitPrice), 0);
+    return lineItems.reduce((sum, item) => sum + ((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)), 0);
   };
 
   const handleSubmit = async () => {
@@ -254,7 +254,7 @@ export function CreateInvoiceDialog({
         order_id: lineItems[0]?.orderId || null, // Primary order reference
         invoice_number: invoiceNumber || '', // Will be auto-generated if empty
         order_name: lineItems.map(i => i.productName).filter(Boolean).join(', '),
-        quantity: lineItems.reduce((sum, item) => sum + item.quantity, 0),
+        quantity: lineItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
         exchange_rate: exchangeRate,
         subtotal: subtotal,
         total: subtotal,
@@ -283,9 +283,9 @@ export function CreateInvoiceDialog({
           product_name: item.productName,
           description: item.description,
           inclusions: item.inclusions,
-          quantity: item.quantity,
-          unit_price: item.unitPrice,
-          amount: item.quantity * item.unitPrice,
+          quantity: Number(item.quantity) || 0,
+          unit_price: Number(item.unitPrice) || 0,
+          amount: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
           sort_order: idx,
         }));
 
@@ -486,7 +486,8 @@ export function CreateInvoiceDialog({
                         type="number"
                         min="1"
                         value={item.quantity}
-                        onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value) || 1)}
+                        onChange={(e) => handleLineItemChange(index, 'quantity', e.target.value === '' ? '' : parseInt(e.target.value) || '')}
+                        onBlur={(e) => { if (e.target.value === '') handleLineItemChange(index, 'quantity', 1); }}
                       />
                     </div>
 
@@ -497,7 +498,8 @@ export function CreateInvoiceDialog({
                         step="0.01"
                         min="0"
                         value={item.unitPrice}
-                        onChange={(e) => handleLineItemChange(index, 'unitPrice', parseFloat(e.target.value) || 0)}
+                        onChange={(e) => handleLineItemChange(index, 'unitPrice', e.target.value === '' ? '' : parseFloat(e.target.value))}
+                        onBlur={(e) => { if (e.target.value === '') handleLineItemChange(index, 'unitPrice', 0); }}
                       />
                     </div>
                   </div>
@@ -514,7 +516,7 @@ export function CreateInvoiceDialog({
                     <div className="space-y-2">
                       <Label className="text-xs">Amount</Label>
                       <div className="h-10 px-3 py-2 rounded-md border bg-muted flex items-center font-medium">
-                        {getCurrencySymbol(propCurrency)}{(item.quantity * item.unitPrice).toFixed(2)}
+                        {getCurrencySymbol(propCurrency)}{((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toFixed(2)}
                       </div>
                     </div>
                   </div>
