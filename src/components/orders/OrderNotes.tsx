@@ -187,7 +187,7 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
           <div className="flex items-start gap-3">
             <Avatar className="h-8 w-8">
               <AvatarFallback className="text-xs">
-                {user?.email?.charAt(0).toUpperCase() || 'U'}
+                {(profile?.full_name || user?.email || 'U').charAt(0).toUpperCase()}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 space-y-2">
