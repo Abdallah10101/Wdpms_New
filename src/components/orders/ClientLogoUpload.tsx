@@ -71,8 +71,26 @@ export function ClientLogoUpload({ client, open, onOpenChange, onSuccess }: Clie
     }
   };
 
+  const isValidImageUrl = (url: string): boolean => {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    } catch {
+      return false;
+    }
+  };
+
   const handleUrlSubmit = async () => {
     if (!logoUrl.trim() || !client) return;
+
+    if (!isValidImageUrl(logoUrl.trim())) {
+      toast({
+        title: 'Invalid URL',
+        description: 'Please enter a valid image URL starting with https:// or http://',
+        variant: 'destructive',
+      });
+      return;
+    }
 
     setIsUploading(true);
     try {

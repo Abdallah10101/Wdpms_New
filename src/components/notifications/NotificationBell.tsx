@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/hooks/useAuth';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +28,7 @@ interface Notification {
 
 export function NotificationBell() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -34,17 +36,19 @@ export function NotificationBell() {
   const unreadCount = notifications.filter(n => !n.is_read).length;
 
   useEffect(() => {
+    if (!user?.id) return;
     fetchNotifications();
-    
-    // Subscribe to realtime notifications
+
+    // Subscribe to realtime notifications — filtered to current user only
     const channel = supabase
-      .channel('notifications')
+      .channel(`notifications:${user.id}`)
       .on(
         'postgres_changes',
         {
           event: 'INSERT',
           schema: 'public',
           table: 'notifications',
+          filter: `user_id=eq.${user.id}`,
         },
         (payload) => {
           const newNotification = payload.new as Notification;
@@ -57,7 +61,7 @@ export function NotificationBell() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [user?.id]);
 
   const fetchNotifications = async () => {
     try {

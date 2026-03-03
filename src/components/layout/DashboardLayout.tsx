@@ -184,11 +184,13 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     setIsSearching(true);
     try {
       const results: SearchResult[] = [];
+      // Escape SQL LIKE wildcards to prevent injection via .or() filter strings
+      const safe = q.replace(/%/g, '\\%').replace(/_/g, '\\_');
       const [ordersRes, clientsRes, leadsRes, invoicesRes] = await Promise.all([
-        supabase.from('orders').select('id, order_number, product_name').or(`order_number.ilike.%${q}%,product_name.ilike.%${q}%`).limit(5),
-        supabase.from('clients').select('id, name, brand_name').or(`name.ilike.%${q}%,brand_name.ilike.%${q}%`).limit(5),
-        (supabase.from('leads' as any) as any).select('id, company_name, contact_name').or(`company_name.ilike.%${q}%,contact_name.ilike.%${q}%`).limit(5),
-        supabase.from('invoices').select('id, invoice_number, order_name').or(`invoice_number.ilike.%${q}%,order_name.ilike.%${q}%`).limit(5),
+        supabase.from('orders').select('id, order_number, product_name').or(`order_number.ilike.%${safe}%,product_name.ilike.%${safe}%`).limit(5),
+        supabase.from('clients').select('id, name, brand_name').or(`name.ilike.%${safe}%,brand_name.ilike.%${safe}%`).limit(5),
+        (supabase.from('leads' as any) as any).select('id, company_name, contact_name').or(`company_name.ilike.%${safe}%,contact_name.ilike.%${safe}%`).limit(5),
+        supabase.from('invoices').select('id, invoice_number, order_name').or(`invoice_number.ilike.%${safe}%,order_name.ilike.%${safe}%`).limit(5),
       ]);
       (ordersRes.data || []).forEach((o: any) => results.push({ type: 'order', id: o.id, title: o.order_number, subtitle: o.product_name, href: `/orders/${o.id}` }));
       (clientsRes.data || []).forEach((c: any) => results.push({ type: 'client', id: c.id, title: c.brand_name || c.name, subtitle: c.brand_name ? c.name : undefined, href: `/clients/${c.id}` }));
