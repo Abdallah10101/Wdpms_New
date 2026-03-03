@@ -44,6 +44,7 @@ const ACTION_CONFIG: Record<string, { label: string; icon: React.ReactNode; colo
   supplier_updated:     { label: 'Updated supplier',    icon: <Pencil className="h-4 w-4" />,     color: 'text-amber-500' },
   supplier_deleted:     { label: 'Deleted supplier',    icon: <Trash2 className="h-4 w-4" />,     color: 'text-red-500' },
   supplier_bulk_deleted:{ label: 'Bulk deleted suppliers', icon: <Trash2 className="h-4 w-4" />,  color: 'text-red-500' },
+  csv_exported:         { label: 'Exported CSV',           icon: <Download className="h-4 w-4" />,   color: 'text-emerald-500' },
 };
 
 function describeActivity(entry: UnifiedEntry): string {
@@ -76,6 +77,8 @@ function describeActivity(entry: UnifiedEntry): string {
       return `Deleted supplier ${t}`;
     case 'supplier_bulk_deleted':
       return `Bulk deleted ${t}${entry.details?.names ? `: ${entry.details.names.join(', ')}` : ''}`;
+    case 'csv_exported':
+      return `Exported ${t} CSV (${entry.details?.count || 0} records)`;
     default:
       return entry.action_type || 'Unknown action';
   }
@@ -83,7 +86,7 @@ function describeActivity(entry: UnifiedEntry): string {
 
 export default function AuditLog() {
   const navigate = useNavigate();
-  const { user, role, isLoading: authLoading } = useAuth();
+  const { user, role, profile, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [entries, setEntries] = useState<UnifiedEntry[]>([]);
@@ -165,6 +168,20 @@ export default function AuditLog() {
 
   const getStageConfig = (stage: string) => PRODUCTION_STAGES.find(s => s.value === stage);
 
+  const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
+    try {
+      await (supabase.from as any)('activity_log').insert({
+        action_type: actionType,
+        actor_id: user?.id,
+        actor_name: profile?.full_name || user?.email || 'Unknown',
+        target_name: targetName,
+        details,
+      });
+    } catch (err) {
+      console.error('Failed to log activity:', err);
+    }
+  };
+
   const exportCSV = () => {
     const headers = ['Timestamp', 'Type', 'Actor', 'Description', 'Order #'];
     const rows = entries.map(e => {
@@ -192,6 +209,7 @@ export default function AuditLog() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'audit-log.csv'; a.click();
     URL.revokeObjectURL(url);
+    logActivity('csv_exported', 'audit_log', { count: entries.length });
   };
 
   if (authLoading || !user) return null;

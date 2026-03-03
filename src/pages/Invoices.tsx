@@ -63,7 +63,7 @@ const STATUS_LABELS: Record<InvoiceStatus, string> = {
 
 export default function Invoices() {
   const navigate = useNavigate();
-  const { user, role, isLoading: authLoading } = useAuth();
+  const { user, role, profile, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -238,6 +238,20 @@ export default function Invoices() {
     }
   };
 
+  const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
+    try {
+      await (supabase.from as any)('activity_log').insert({
+        action_type: actionType,
+        actor_id: user?.id,
+        actor_name: profile?.full_name || user?.email || 'Unknown',
+        target_name: targetName,
+        details,
+      });
+    } catch (err) {
+      console.error('Failed to log activity:', err);
+    }
+  };
+
   const exportCSV = () => {
     const headers = ['Invoice #', 'Client', 'Order', 'Amount', 'Status', 'Date'];
     const rows = filteredInvoices.map(inv => [
@@ -253,6 +267,7 @@ export default function Invoices() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'invoices.csv'; a.click();
     URL.revokeObjectURL(url);
+    logActivity('csv_exported', 'invoices', { count: filteredInvoices.length });
   };
 
   const filteredInvoices = invoices.filter(invoice => {

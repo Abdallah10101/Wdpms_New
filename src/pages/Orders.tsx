@@ -19,7 +19,7 @@ import { useRealtimeOrders } from '@/hooks/useRealtimeOrders';
 
 export default function Orders() {
   const navigate = useNavigate();
-  const { user, role, isLoading: authLoading } = useAuth();
+  const { user, role, profile, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -99,6 +99,20 @@ export default function Orders() {
     setLogoUploadClient(client);
   };
 
+  const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
+    try {
+      await (supabase.from as any)('activity_log').insert({
+        action_type: actionType,
+        actor_id: user?.id,
+        actor_name: profile?.full_name || user?.email || 'Unknown',
+        target_name: targetName,
+        details,
+      });
+    } catch (err) {
+      console.error('Failed to log activity:', err);
+    }
+  };
+
   const exportOrdersCSV = () => {
     const allOrders = orders;
     if (allOrders.length === 0) return;
@@ -113,6 +127,7 @@ export default function Orders() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'orders.csv'; a.click();
     URL.revokeObjectURL(url);
+    logActivity('csv_exported', 'orders', { count: allOrders.length });
   };
 
   const handleBackClick = () => {

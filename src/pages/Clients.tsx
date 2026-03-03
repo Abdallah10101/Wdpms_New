@@ -279,6 +279,7 @@ export default function Clients() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'clients.csv'; a.click();
     URL.revokeObjectURL(url);
+    logActivity('csv_exported', 'clients', { count: data.length });
   };
 
   const handleBulkExport = () => {

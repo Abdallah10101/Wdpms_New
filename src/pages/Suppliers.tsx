@@ -202,6 +202,7 @@ export default function Suppliers() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'suppliers.csv'; a.click();
     URL.revokeObjectURL(url);
+    logActivity('csv_exported', 'suppliers', { count: data.length });
   };
 
   const handleBulkExport = () => {
