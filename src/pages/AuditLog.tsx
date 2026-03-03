@@ -10,7 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   History, ExternalLink, Download, UserX, UserCheck, UserPlus,
-  ShieldAlert, ArrowRightLeft,
+  ShieldAlert, ArrowRightLeft, Building2, Pencil, Trash2,
 } from 'lucide-react';
 import { PRODUCTION_STAGES } from '@/lib/types';
 import { format } from 'date-fns';
@@ -32,10 +32,14 @@ type UnifiedEntry = {
 };
 
 const ACTION_CONFIG: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-  user_created:     { label: 'Created user',     icon: <UserPlus className="h-4 w-4" />,   color: 'text-blue-500' },
-  user_suspended:   { label: 'Suspended user',   icon: <UserX className="h-4 w-4" />,      color: 'text-red-500' },
-  user_reactivated: { label: 'Reactivated user', icon: <UserCheck className="h-4 w-4" />,  color: 'text-green-500' },
-  role_changed:     { label: 'Changed role',     icon: <ShieldAlert className="h-4 w-4" />, color: 'text-amber-500' },
+  user_created:       { label: 'Created user',      icon: <UserPlus className="h-4 w-4" />,    color: 'text-blue-500' },
+  user_suspended:     { label: 'Suspended user',    icon: <UserX className="h-4 w-4" />,       color: 'text-red-500' },
+  user_reactivated:   { label: 'Reactivated user',  icon: <UserCheck className="h-4 w-4" />,   color: 'text-green-500' },
+  role_changed:       { label: 'Changed role',      icon: <ShieldAlert className="h-4 w-4" />,  color: 'text-amber-500' },
+  client_created:     { label: 'Created client',    icon: <Building2 className="h-4 w-4" />,    color: 'text-blue-500' },
+  client_updated:     { label: 'Updated client',    icon: <Pencil className="h-4 w-4" />,       color: 'text-amber-500' },
+  client_deleted:     { label: 'Deleted client',    icon: <Trash2 className="h-4 w-4" />,       color: 'text-red-500' },
+  client_bulk_deleted:{ label: 'Bulk deleted clients', icon: <Trash2 className="h-4 w-4" />,    color: 'text-red-500' },
 };
 
 function describeActivity(entry: UnifiedEntry): string {
@@ -52,6 +56,14 @@ function describeActivity(entry: UnifiedEntry): string {
       const to = entry.details?.to_role ? ` to ${entry.details.to_role}` : '';
       return `Changed ${t}'s role${from}${to}`;
     }
+    case 'client_created':
+      return `Created client ${t}`;
+    case 'client_updated':
+      return `Updated client ${t}`;
+    case 'client_deleted':
+      return `Deleted client ${t}`;
+    case 'client_bulk_deleted':
+      return `Bulk deleted ${t}${entry.details?.names ? `: ${entry.details.names.join(', ')}` : ''}`;
     default:
       return entry.action_type || 'Unknown action';
   }

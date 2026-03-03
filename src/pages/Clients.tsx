@@ -27,7 +27,8 @@ import {
 } from '@/components/ui/table';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Search, Building2, Mail, Phone, Loader2, Pencil, Download, Trash2 } from 'lucide-react';
+import { Plus, Search, Building2, Mail, Phone, Loader2, Pencil, Download, Trash2, CheckSquare, X } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,7 +54,7 @@ const emptyForm = {
 
 export default function Clients() {
   const navigate = useNavigate();
-  const { user, role, isLoading: authLoading } = useAuth();
+  const { user, role, profile, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
 
   const [clients, setClients] = useState<Client[]>([]);
@@ -63,6 +64,8 @@ export default function Clients() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   // Form state
   const [formData, setFormData] = useState(emptyForm);
@@ -104,6 +107,20 @@ export default function Clients() {
     }
   };
 
+  const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
+    try {
+      await (supabase.from as any)('activity_log').insert({
+        action_type: actionType,
+        actor_id: user?.id,
+        actor_name: profile?.full_name || user?.email || 'Unknown',
+        target_name: targetName,
+        details,
+      });
+    } catch (err) {
+      console.error('Failed to log activity:', err);
+    }
+  };
+
   const handleCreateClient = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -129,6 +146,7 @@ export default function Clients() {
 
       setIsDialogOpen(false);
       setFormData(emptyForm);
+      logActivity('client_created', formData.name);
       fetchClients();
     } catch (error) {
       console.error('Error creating client:', error);
@@ -164,6 +182,7 @@ export default function Clients() {
       if (error) throw error;
 
       toast({ title: 'Success', description: 'Client updated successfully.' });
+      logActivity('client_updated', editFormData.name);
       setIsEditDialogOpen(false);
       setEditingClient(null);
       fetchClients();
@@ -191,10 +210,12 @@ export default function Clients() {
 
   const handleDeleteClient = async (clientId: string) => {
     try {
+      const client = clients.find((c) => c.id === clientId);
       const { error } = await supabase.from('clients').delete().eq('id', clientId);
       if (error) throw error;
       setClients((prev) => prev.filter((c) => c.id !== clientId));
       toast({ title: 'Deleted', description: 'Client has been removed.' });
+      logActivity('client_deleted', client?.name || 'Unknown');
     } catch (err: any) {
       console.error('Error deleting client:', err);
       toast({
@@ -205,9 +226,52 @@ export default function Clients() {
     }
   };
 
-  const exportCSV = () => {
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredClients.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredClients.map((c) => c.id)));
+    }
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    const deletedNames: string[] = [];
+    for (const id of ids) {
+      try {
+        const client = clients.find((c) => c.id === id);
+        const { error } = await supabase.from('clients').delete().eq('id', id);
+        if (!error) {
+          deletedNames.push(client?.name || 'Unknown');
+        }
+      } catch {}
+    }
+    if (deletedNames.length > 0) {
+      toast({ title: 'Deleted', description: `${deletedNames.length} client${deletedNames.length !== 1 ? 's' : ''} removed.` });
+      logActivity('client_bulk_deleted', `${deletedNames.length} clients`, { names: deletedNames });
+      fetchClients();
+    }
+    exitSelectMode();
+  };
+
+  const exportCSV = (clientsToExport?: Client[]) => {
+    const data = clientsToExport || filteredClients;
     const headers = ['Name', 'Brand', 'Contact Person', 'Email', 'Phone', 'Address'];
-    const rows = filteredClients.map(c => [
+    const rows = data.map(c => [
       c.name, c.brand_name || '', c.contact_person || '', c.contact_email || '', c.contact_phone || '', c.address || ''
     ]);
     const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
@@ -215,6 +279,11 @@ export default function Clients() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = 'clients.csv'; a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleBulkExport = () => {
+    const selected = filteredClients.filter((c) => selectedIds.has(c.id));
+    exportCSV(selected);
   };
 
   const filteredClients = clients.filter(
@@ -240,11 +309,19 @@ export default function Clients() {
             </p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={exportCSV}>
-              <Download className="mr-2 h-4 w-4" />
-              Export CSV
-            </Button>
-          {role === 'admin' && (<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            {role === 'admin' && !selectMode && (
+              <Button variant="outline" onClick={() => setSelectMode(true)}>
+                <CheckSquare className="mr-2 h-4 w-4" />
+                Select
+              </Button>
+            )}
+            {!selectMode && (
+              <Button variant="outline" onClick={() => exportCSV()}>
+                <Download className="mr-2 h-4 w-4" />
+                Export CSV
+              </Button>
+            )}
+          {role === 'admin' && !selectMode && (<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
                   <Plus className="mr-2 h-4 w-4" />
@@ -424,6 +501,50 @@ export default function Clients() {
           />
         </div>
 
+        {/* Bulk Action Bar */}
+        {selectMode && (
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/50 px-4 py-3">
+            <span className="text-sm font-medium">
+              {selectedIds.size} selected
+            </span>
+            <div className="ml-auto flex gap-2">
+              <Button variant="outline" size="sm" onClick={handleBulkExport} disabled={selectedIds.size === 0}>
+                <Download className="mr-2 h-4 w-4" />
+                Export Selected
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" size="sm" disabled={selectedIds.size === 0}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete Selected
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete {selectedIds.size} Client{selectedIds.size !== 1 ? 's' : ''}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete {selectedIds.size} selected client{selectedIds.size !== 1 ? 's' : ''}? This action cannot be undone.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleBulkDelete}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <Button variant="ghost" size="sm" onClick={exitSelectMode}>
+                <X className="mr-2 h-4 w-4" />
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Clients Table */}
         <Card>
           <CardHeader>
@@ -456,20 +577,36 @@ export default function Clients() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    {selectMode && (
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={selectedIds.size === filteredClients.length && filteredClients.length > 0}
+                          onCheckedChange={toggleSelectAll}
+                        />
+                      </TableHead>
+                    )}
                     <TableHead>Company</TableHead>
                     <TableHead>Contact</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Phone</TableHead>
-                    {role === 'admin' && <TableHead className="w-12"></TableHead>}
+                    {role === 'admin' && !selectMode && <TableHead className="w-12"></TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredClients.map((client) => (
                     <TableRow
                       key={client.id}
-                      className="cursor-pointer hover:bg-accent"
-                      onClick={() => navigate(`/clients/${client.id}`)}
+                      className={`cursor-pointer hover:bg-accent ${selectMode && selectedIds.has(client.id) ? 'bg-accent' : ''}`}
+                      onClick={() => selectMode ? toggleSelect(client.id) : navigate(`/clients/${client.id}`)}
                     >
+                      {selectMode && (
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Checkbox
+                            checked={selectedIds.has(client.id)}
+                            onCheckedChange={() => toggleSelect(client.id)}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell>
                         <div>
                           <p className="font-medium">{client.name}</p>
@@ -501,7 +638,7 @@ export default function Clients() {
                           '-'
                         )}
                       </TableCell>
-                      {role === 'admin' && (
+                      {role === 'admin' && !selectMode && (
                         <TableCell onClick={(e) => e.stopPropagation()}>
                           <div className="flex items-center gap-1">
                             <Button variant="ghost" size="icon" onClick={() => openEditDialog(client)}>
