@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Package, FileText, Check, X } from 'lucide-react';
+import { Bell, Package, FileText, MessageSquare, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -127,6 +127,8 @@ export function NotificationBell() {
         return <Package className="h-4 w-4 text-blue-500" />;
       case 'invoice_uploaded':
         return <FileText className="h-4 w-4 text-green-500" />;
+      case 'new_message':
+        return <MessageSquare className="h-4 w-4 text-yellow-500" />;
       default:
         return <Bell className="h-4 w-4 text-muted-foreground" />;
     }
