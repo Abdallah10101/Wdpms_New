@@ -61,6 +61,12 @@ export default function Team() {
   const [newRole, setNewRole] = useState<'team' | 'client'>('team');
   const [createdCredentials, setCreatedCredentials] = useState<{ email: string; password: string } | null>(null);
 
+  // Client linking state
+  const [clientLinkMode, setClientLinkMode] = useState<'new' | 'existing'>('new');
+  const [brandName, setBrandName] = useState('');
+  const [selectedClientId, setSelectedClientId] = useState('');
+  const [unlinkedClients, setUnlinkedClients] = useState<{ id: string; name: string; brand_name: string | null }[]>([]);
+
   useEffect(() => {
     if (!authLoading && !user) {
       navigate('/auth');
@@ -132,6 +138,21 @@ export default function Team() {
     }
   };
 
+  const fetchUnlinkedClients = async () => {
+    const { data } = await supabase
+      .from('clients')
+      .select('id, name, brand_name')
+      .is('user_id', null)
+      .order('brand_name');
+    setUnlinkedClients((data || []) as { id: string; name: string; brand_name: string | null }[]);
+  };
+
+  useEffect(() => {
+    if (newRole === 'client') {
+      fetchUnlinkedClients();
+    }
+  }, [newRole]);
+
   const logActivity = async (actionType: string, targetName: string, details: Record<string, any> = {}) => {
     try {
       const { error } = await (supabase.from as any)('activity_log').insert({
@@ -171,6 +192,22 @@ export default function Team() {
       }
       if (data?.error) throw new Error(data.error);
 
+      // If role is client, create or link client record
+      if (newRole === 'client' && data?.user?.id) {
+        const newUserId = data.user.id;
+        if (clientLinkMode === 'existing' && selectedClientId) {
+          await supabase.from('clients').update({ user_id: newUserId }).eq('id', selectedClientId);
+        } else {
+          await supabase.from('clients').insert({
+            name: newFullName,
+            brand_name: brandName || null,
+            contact_email: newEmail,
+            user_id: newUserId,
+            created_by: user?.id,
+          });
+        }
+      }
+
       setCreatedCredentials({ email: newEmail, password: otp });
       toast({ title: 'User created', description: `${newEmail} has been added as ${newRole}.` });
       logActivity('user_created', newFullName, { email: newEmail, role: newRole });
@@ -180,6 +217,9 @@ export default function Team() {
       setNewFullName('');
       setNewRole('team');
       setOtp(generateOTP());
+      setClientLinkMode('new');
+      setBrandName('');
+      setSelectedClientId('');
     } catch (err: any) {
       console.error('Error creating user:', err);
       toast({ title: 'Error', description: err.message || 'Failed to create user.', variant: 'destructive' });
@@ -289,6 +329,9 @@ export default function Team() {
     setNewFullName('');
     setNewRole('team');
     setOtp(generateOTP());
+    setClientLinkMode('new');
+    setBrandName('');
+    setSelectedClientId('');
   };
 
   const getInitials = (name: string) => {
@@ -440,6 +483,62 @@ export default function Team() {
                         ))}
                       </div>
                     </div>
+                    {newRole === 'client' && (
+                      <div className="space-y-3 rounded-lg border border-border p-3">
+                        <Label className="text-sm font-medium">Client Profile</Label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {(['new', 'existing'] as const).map((mode) => (
+                            <button
+                              key={mode}
+                              type="button"
+                              onClick={() => { setClientLinkMode(mode); setSelectedClientId(''); }}
+                              disabled={isSubmitting}
+                              className={`rounded-md border px-3 py-2 text-sm transition-colors ${
+                                clientLinkMode === mode
+                                  ? 'border-primary bg-primary/5 text-primary'
+                                  : 'border-border hover:bg-muted/50'
+                              }`}
+                            >
+                              {mode === 'new' ? 'Create New' : 'Link Existing'}
+                            </button>
+                          ))}
+                        </div>
+                        {clientLinkMode === 'new' ? (
+                          <div className="space-y-2">
+                            <Label className="text-xs">Brand Name (optional)</Label>
+                            <Input
+                              placeholder="e.g., NOVA WEAR"
+                              value={brandName}
+                              onChange={(e) => setBrandName(e.target.value)}
+                              disabled={isSubmitting}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                              A client profile will be auto-created using the full name above.
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2">
+                            <Label className="text-xs">Select Client</Label>
+                            <Select value={selectedClientId} onValueChange={setSelectedClientId}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select a client to link..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {unlinkedClients.length === 0 ? (
+                                  <SelectItem value="none" disabled>No unlinked clients</SelectItem>
+                                ) : (
+                                  unlinkedClients.map((c) => (
+                                    <SelectItem key={c.id} value={c.id}>
+                                      {c.brand_name || c.name}
+                                    </SelectItem>
+                                  ))
+                                )}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="space-y-2">
                       <Label className="flex items-center gap-1">
                         <KeyRound className="h-3.5 w-3.5" />
