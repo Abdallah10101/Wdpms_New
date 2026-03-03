@@ -18,7 +18,7 @@ interface OrderNotesProps {
 }
 
 export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
-  const { user, role } = useAuth();
+  const { user, role, profile } = useAuth();
   const { toast } = useToast();
   const [notes, setNotes] = useState<OrderNote[]>([]);
   const [newNote, setNewNote] = useState('');
@@ -80,7 +80,9 @@ export function OrderNotes({ orderId, isClientView = false }: OrderNotesProps) {
           content: newNote.trim(),
           author_id: user?.id,
           is_client_visible: isClientVisible,
-        });
+          author_name: profile?.full_name || user?.email || 'Unknown',
+          author_role: role || 'team',
+        } as any);
 
       if (error) throw error;
 
