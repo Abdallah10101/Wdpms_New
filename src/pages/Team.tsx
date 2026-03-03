@@ -194,11 +194,24 @@ export default function Team() {
 
       // If role is client, create or link client record
       if (newRole === 'client') {
-        const newUserId = data?.user?.id;
+        let newUserId = data?.user?.id;
         console.log('Create-user response data:', JSON.stringify(data));
+
+        // Fallback: if edge function didn't return user ID, look up from profiles
         if (!newUserId) {
-          console.error('No user ID returned from create-user function. Full response:', data);
-          toast({ title: 'Warning', description: 'User created but could not link client profile — no user ID returned.', variant: 'destructive' });
+          console.warn('No user ID in response, looking up from profiles...');
+          const { data: profileLookup } = await supabase
+            .from('profiles')
+            .select('user_id')
+            .eq('email', newEmail)
+            .maybeSingle();
+          newUserId = profileLookup?.user_id;
+          console.log('Profile lookup result:', newUserId);
+        }
+
+        if (!newUserId) {
+          console.error('Could not determine new user ID. Full response:', data);
+          toast({ title: 'Warning', description: 'User created but could not link client profile — no user ID found.', variant: 'destructive' });
         } else if (clientLinkMode === 'existing' && selectedClientId) {
           const { error: linkError } = await supabase.from('clients').update({ user_id: newUserId }).eq('id', selectedClientId);
           if (linkError) {
