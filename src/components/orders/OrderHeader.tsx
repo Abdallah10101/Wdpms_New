@@ -186,7 +186,19 @@ export function OrderHeader({
             <Select
               value={order.current_stage}
               onValueChange={(value) => {
-                // Validate it's a valid stage value before calling
+                // Block stages that aren't enabled for this order
+                if (value === 'printing' && !order.has_printing) {
+                  toast.error("Printing is not enabled for this order");
+                  return;
+                }
+                if (value === 'embroidery' && !order.has_embroidery) {
+                  toast.error("Embroidery is not enabled for this order");
+                  return;
+                }
+                if (value === 'wash_house' && !order.has_wash_house) {
+                  toast.error("Wash House is not enabled for this order");
+                  return;
+                }
                 const validStage = PRODUCTION_STAGES.find(s => s.value === value);
                 if (validStage) {
                   onStageChange(validStage.value);
@@ -200,14 +212,22 @@ export function OrderHeader({
                 </Badge>
               </SelectTrigger>
               <SelectContent>
-                {PRODUCTION_STAGES.map((stage) => (
-                  <SelectItem key={stage.value} value={stage.value}>
-                    <div className="flex items-center gap-2">
-                      <div className={`h-2 w-2 rounded-full ${stage.color}`} />
-                      {stage.label}
-                    </div>
-                  </SelectItem>
-                ))}
+                {PRODUCTION_STAGES.map((stage) => {
+                  const isDisabled =
+                    (stage.value === 'printing' && !order.has_printing) ||
+                    (stage.value === 'embroidery' && !order.has_embroidery) ||
+                    (stage.value === 'wash_house' && !order.has_wash_house);
+                  return (
+                    <SelectItem key={stage.value} value={stage.value} disabled={isDisabled}>
+                      <div className="flex items-center gap-2">
+                        <div className={`h-2 w-2 rounded-full ${stage.color}`} />
+                        <span className={isDisabled ? 'text-muted-foreground line-through' : ''}>
+                          {stage.label}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           ) : (

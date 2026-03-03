@@ -166,6 +166,20 @@ export function DualOverviewKanban({ onOrdersLoaded }: DualOverviewKanbanProps) 
       newStage = validStage.value;
       stageLabel = validStage.label;
     }
+    // Block stages that aren't enabled for this order
+    if (newStage === 'printing' && !order.has_printing) {
+      toast({ title: 'Not Allowed', description: 'Printing is not enabled for this order.', variant: 'destructive' });
+      return;
+    }
+    if (newStage === 'embroidery' && !order.has_embroidery) {
+      toast({ title: 'Not Allowed', description: 'Embroidery is not enabled for this order.', variant: 'destructive' });
+      return;
+    }
+    if (newStage === 'wash_house' && !order.has_wash_house) {
+      toast({ title: 'Not Allowed', description: 'Wash House is not enabled for this order.', variant: 'destructive' });
+      return;
+    }
+
     const newSupplier = destType === 'sample' ? 'sample' : (order.supplier === 'sample' ? null : order.supplier);
 
     // Optimistic update

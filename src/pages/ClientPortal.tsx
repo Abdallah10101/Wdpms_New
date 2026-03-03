@@ -30,7 +30,7 @@ import {
   Send,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
-import { PRODUCTION_STAGES, CLIENT_VISIBLE_STAGES, getClientStageProgress, normalizeStage, type Order, type OrderNote } from '@/lib/types';
+import { PRODUCTION_STAGES, getClientVisibleStagesForOrder, getClientStageProgressForOrder, normalizeStage, type Order, type OrderNote } from '@/lib/types';
 
 const STAGE_SHORT_LABELS: Record<string, string> = {
   cutting: 'Cut',
@@ -390,7 +390,7 @@ export default function ClientPortal() {
                 <div className="grid gap-4">
                   {activeOrders.slice(0, 5).map((order) => {
                     const stageConfig = getStageConfig(order.current_stage);
-                    const progress = getClientStageProgress(order.current_stage);
+                    const progress = getClientStageProgressForOrder(order.current_stage, order);
                     return (
                       <Card key={order.id} className="overflow-hidden">
                         <CardContent className="p-6">
@@ -461,11 +461,15 @@ export default function ClientPortal() {
                           </div>
 
                           {/* Stage Progress Visualization */}
+                          {(() => {
+                            const filteredStages = getClientVisibleStagesForOrder(order);
+                            return (
                           <div className="mt-6 overflow-x-auto py-1">
                             <div className="flex items-center min-w-max px-1">
-                              {CLIENT_VISIBLE_STAGES.map((stage, index) => {
-                                const isActive = order.current_stage === stage.value;
-                                const currentIndex = CLIENT_VISIBLE_STAGES.findIndex(s => s.value === order.current_stage);
+                              {filteredStages.map((stage, index) => {
+                                const normalizedCurrent = normalizeStage(order.current_stage);
+                                const isActive = normalizedCurrent === stage.value;
+                                const currentIndex = filteredStages.findIndex(s => s.value === normalizedCurrent);
                                 const isPast = currentIndex > index;
                                 const isInInternalStage = order.current_stage === 'not_started' || order.current_stage === 'sample';
 
@@ -486,7 +490,7 @@ export default function ClientPortal() {
                                         {STAGE_SHORT_LABELS[stage.value] || stage.label}
                                       </span>
                                     </div>
-                                    {index < CLIENT_VISIBLE_STAGES.length - 1 && (
+                                    {index < filteredStages.length - 1 && (
                                       <div className={`w-5 h-0.5 mx-0.5 mt-[-18px] ${isPast && !isInInternalStage ? 'bg-primary' : 'bg-muted'}`} />
                                     )}
                                   </div>
@@ -494,13 +498,20 @@ export default function ClientPortal() {
                               })}
                             </div>
                           </div>
+                            );
+                          })()}
 
                           {/* Stage Images */}
                           {stageImagesByOrder[order.id] && (
                             <div className="mt-5 space-y-2">
                               <p className="text-sm font-medium">Stage Images</p>
                               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                                {CLIENT_STAGE_IMAGE_STAGES.map((stage) => {
+                                {CLIENT_STAGE_IMAGE_STAGES.filter((stage) => {
+                                  if (stage === 'printing' && !order.has_printing) return false;
+                                  if (stage === 'embroidery' && !order.has_embroidery) return false;
+                                  if (stage === 'wash_house' && !order.has_wash_house) return false;
+                                  return true;
+                                }).map((stage) => {
                                   const image = stageImagesByOrder[order.id]?.[stage];
                                   return (
                                     <div key={stage} className="rounded-md border p-2">
@@ -646,7 +657,7 @@ export default function ClientPortal() {
               <div className="grid gap-4">
                 {activeOrders.map((order) => {
                   const stageConfig = getStageConfig(order.current_stage);
-                  const progress = getClientStageProgress(order.current_stage);
+                  const progress = getClientStageProgressForOrder(order.current_stage, order);
                   return (
                     <Card key={order.id} className="overflow-hidden">
                       <CardContent className="p-6">
@@ -700,7 +711,7 @@ export default function ClientPortal() {
                               </div>
                             )}
                           </div>
-                          
+
                           <div className="lg:w-48">
                             <div className="flex items-center justify-between text-xs mb-1">
                               <span>Progress</span>
@@ -708,7 +719,7 @@ export default function ClientPortal() {
                             </div>
                             <Progress value={progress} className="h-2" />
                           </div>
-                          
+
                           <Button variant="outline" size="sm" asChild>
                             <Link to={`/orders/${order.id}`}>
                               View Details
@@ -718,11 +729,15 @@ export default function ClientPortal() {
                         </div>
 
                         {/* Stage Progress Visualization - Client View */}
+                        {(() => {
+                          const filteredStages = getClientVisibleStagesForOrder(order);
+                          return (
                         <div className="mt-6 overflow-x-auto py-1">
                           <div className="flex items-center min-w-max px-1">
-                            {CLIENT_VISIBLE_STAGES.map((stage, index) => {
-                              const isActive = order.current_stage === stage.value;
-                              const currentIndex = CLIENT_VISIBLE_STAGES.findIndex(s => s.value === order.current_stage);
+                            {filteredStages.map((stage, index) => {
+                              const normalizedCurrent = normalizeStage(order.current_stage);
+                              const isActive = normalizedCurrent === stage.value;
+                              const currentIndex = filteredStages.findIndex(s => s.value === normalizedCurrent);
                               const isPast = currentIndex > index;
                               const isInInternalStage = order.current_stage === 'not_started' || order.current_stage === 'sample';
 
@@ -743,7 +758,7 @@ export default function ClientPortal() {
                                       {STAGE_SHORT_LABELS[stage.value] || stage.label}
                                     </span>
                                   </div>
-                                  {index < CLIENT_VISIBLE_STAGES.length - 1 && (
+                                  {index < filteredStages.length - 1 && (
                                     <div className={`w-5 h-0.5 mx-0.5 mt-[-18px] ${isPast && !isInInternalStage ? 'bg-primary' : 'bg-muted'}`} />
                                   )}
                                 </div>
@@ -751,12 +766,19 @@ export default function ClientPortal() {
                             })}
                           </div>
                         </div>
+                          );
+                        })()}
 
                         {stageImagesByOrder[order.id] && (
                           <div className="mt-5 space-y-2">
                             <p className="text-sm font-medium">Stage Images</p>
                             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-                              {CLIENT_STAGE_IMAGE_STAGES.map((stage) => {
+                              {CLIENT_STAGE_IMAGE_STAGES.filter((stage) => {
+                                if (stage === 'printing' && !order.has_printing) return false;
+                                if (stage === 'embroidery' && !order.has_embroidery) return false;
+                                if (stage === 'wash_house' && !order.has_wash_house) return false;
+                                return true;
+                              }).map((stage) => {
                                 const image = stageImagesByOrder[order.id]?.[stage];
                                 return (
                                   <div key={stage} className="rounded-md border p-2">

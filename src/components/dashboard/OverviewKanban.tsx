@@ -136,6 +136,23 @@ export function OverviewKanban({ onOrdersLoaded }: OverviewKanbanProps) {
 
     const newStage = validStage.value;
 
+    // Block stages that aren't enabled for this order
+    const draggedOrder = orders.find(o => o.id === orderId);
+    if (draggedOrder) {
+      if (newStage === 'printing' && !draggedOrder.has_printing) {
+        toast({ title: 'Not Allowed', description: 'Printing is not enabled for this order.', variant: 'destructive' });
+        return;
+      }
+      if (newStage === 'embroidery' && !draggedOrder.has_embroidery) {
+        toast({ title: 'Not Allowed', description: 'Embroidery is not enabled for this order.', variant: 'destructive' });
+        return;
+      }
+      if (newStage === 'wash_house' && !draggedOrder.has_wash_house) {
+        toast({ title: 'Not Allowed', description: 'Wash House is not enabled for this order.', variant: 'destructive' });
+        return;
+      }
+    }
+
     // Optimistic update
     setOrders(prevOrders =>
       prevOrders.map(order =>

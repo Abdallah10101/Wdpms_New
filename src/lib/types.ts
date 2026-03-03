@@ -319,6 +319,33 @@ export function getClientStageProgress(stage: ProductionStage): number {
   return Math.round(((index + 1) / CLIENT_VISIBLE_STAGES.length) * 100);
 }
 
+// Per-order filtered client stages (hides printing/embroidery/wash_house based on flags)
+export function getClientVisibleStagesForOrder(order: {
+  has_printing?: boolean;
+  has_embroidery?: boolean;
+  has_wash_house?: boolean;
+}) {
+  return CLIENT_VISIBLE_STAGES.filter((stage) => {
+    if (stage.value === 'printing' && !order.has_printing) return false;
+    if (stage.value === 'embroidery' && !order.has_embroidery) return false;
+    if (stage.value === 'wash_house' && !order.has_wash_house) return false;
+    return true;
+  });
+}
+
+// Client progress based on per-order visible stages
+export function getClientStageProgressForOrder(
+  stage: ProductionStage,
+  order: { has_printing?: boolean; has_embroidery?: boolean; has_wash_house?: boolean }
+): number {
+  if (stage === 'not_started' || stage === 'sample') return 0;
+  const normalized = normalizeStage(stage);
+  const visibleStages = getClientVisibleStagesForOrder(order);
+  const index = visibleStages.findIndex(s => s.value === normalized);
+  if (index === -1) return 0;
+  return Math.round(((index + 1) / visibleStages.length) * 100);
+}
+
 // ── Order Analysis ──────────────────────────────────────
 export interface OrderAnalysisOrderItem {
   id: string;

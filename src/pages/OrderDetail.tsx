@@ -103,6 +103,21 @@ export default function OrderDetail() {
 
   const handleStageChange = async (newStage: ProductionStage) => {
     if (!order || isUpdating) return;
+
+    // Block stages that aren't enabled for this order
+    if (newStage === 'printing' && !order.has_printing) {
+      toast({ title: 'Not Allowed', description: 'Printing is not enabled for this order.', variant: 'destructive' });
+      return;
+    }
+    if (newStage === 'embroidery' && !order.has_embroidery) {
+      toast({ title: 'Not Allowed', description: 'Embroidery is not enabled for this order.', variant: 'destructive' });
+      return;
+    }
+    if (newStage === 'wash_house' && !order.has_wash_house) {
+      toast({ title: 'Not Allowed', description: 'Wash House is not enabled for this order.', variant: 'destructive' });
+      return;
+    }
+
     setIsUpdating(true);
 
     try {
