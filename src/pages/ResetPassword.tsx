@@ -18,6 +18,16 @@ export default function ResetPassword() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const [isRecovery, setIsRecovery] = useState(false);
+
+  useEffect(() => {
+    // Check if we arrived here via a password recovery link (hash contains type=recovery)
+    const hash = window.location.hash;
+    if (hash.includes('type=recovery')) {
+      setIsRecovery(true);
+    }
+  }, []);
+
   useEffect(() => {
     if (!authLoading) {
       // If not logged in, send to auth
@@ -25,12 +35,12 @@ export default function ResetPassword() {
         navigate('/auth');
         return;
       }
-      // If user doesn't need to reset, send to dashboard
-      if (!user.user_metadata?.must_change_password) {
+      // Allow page if: password recovery flow OR first-login forced reset
+      if (!isRecovery && !user.user_metadata?.must_change_password) {
         navigate('/dashboard');
       }
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, isRecovery]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -90,7 +100,9 @@ export default function ResetPassword() {
               Set Your Password
             </CardTitle>
             <CardDescription>
-              Your account was created with a temporary one-time password. Please set a new password to continue.
+              {isRecovery
+                ? 'Enter your new password below to reset your account password.'
+                : 'Your account was created with a temporary one-time password. Please set a new password to continue.'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
