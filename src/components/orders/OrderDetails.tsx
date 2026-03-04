@@ -31,6 +31,7 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
     has_printing: order.has_printing || false,
     has_embroidery: order.has_embroidery || false,
     has_wash_house: order.has_wash_house || false,
+    created_at: order.created_at ? new Date(order.created_at).toISOString().slice(0, 16) : '',
   });
 
   const client = order.client as any;
@@ -51,6 +52,7 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
           has_printing: formData.has_printing,
           has_embroidery: formData.has_embroidery,
           has_wash_house: formData.has_wash_house,
+          created_at: formData.created_at ? new Date(formData.created_at).toISOString() : order.created_at,
         })
         .eq('id', order.id);
 
@@ -87,6 +89,7 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
       has_printing: order.has_printing || false,
       has_embroidery: order.has_embroidery || false,
       has_wash_house: order.has_wash_house || false,
+      created_at: order.created_at ? new Date(order.created_at).toISOString().slice(0, 16) : '',
     });
     setIsEditing(false);
   };
@@ -181,6 +184,17 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
                 onChange={(e) => setFormData({ ...formData, pieces_sent: parseInt(e.target.value) || 0 })}
               />
             </div>
+          </div>
+
+          {/* Created Date */}
+          <div className="space-y-2">
+            <Label htmlFor="created_at">Created Date</Label>
+            <Input
+              id="created_at"
+              type="datetime-local"
+              value={formData.created_at}
+              onChange={(e) => setFormData({ ...formData, created_at: e.target.value })}
+            />
           </div>
 
           {/* Process Types */}
