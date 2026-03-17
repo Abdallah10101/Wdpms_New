@@ -155,28 +155,28 @@ export function InvoiceViewer({
     const orderName = escapeHtml(invoice.order_name);
     
     // Generate line items HTML with escaped content
-    const itemsHtml = items.length > 0 
+    const itemsHtml = items.length > 0
       ? items.map(item => `
           <tr>
-            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; width: 60px; vertical-align: top; font-weight: 500;">${item.quantity}</td>
-            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; vertical-align: top;">
-              <div style="font-weight: 600;">${escapeHtml(item.product_name)}</div>
+            <td style="vertical-align: top; font-weight: 500;">${item.quantity}</td>
+            <td style="vertical-align: top;">
+              <div style="font-weight: 600; color: #1c1917;">${escapeHtml(item.product_name)}</div>
               ${item.inclusions && item.inclusions.length > 0 ? `
-                <div style="color: #78716c; font-size: 13px; margin-top: 6px;">
-                  <div>includes :</div>
-                  ${item.inclusions.map(inc => `<div>- ${escapeHtml(inc)}</div>`).join('')}
+                <div style="color: #78716c; font-size: 11.5px; margin-top: 6px;">
+                  <div style="font-weight: 500; color: #a8a29e; text-transform: uppercase; font-size: 10px; letter-spacing: 0.5px;">Includes:</div>
+                  ${item.inclusions.map(inc => `<div style="padding-left: 8px;">- ${escapeHtml(inc)}</div>`).join('')}
                 </div>
               ` : ''}
             </td>
-            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right; width: 100px; vertical-align: top;">${formatAmount(item.unit_price)}</td>
-            <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right; width: 120px; vertical-align: top; font-weight: 500;">${formatAmount(item.amount)}</td>
+            <td style="text-align: right; vertical-align: top;">${formatAmount(item.unit_price)}</td>
+            <td style="text-align: right; vertical-align: top; font-weight: 600;">${formatAmount(item.amount)}</td>
           </tr>
         `).join('')
       : `<tr>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4;">${invoice.quantity}</td>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4;">${orderName}</td>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${formatAmount(invoice.wholesale_price)}</td>
-          <td style="padding: 16px 12px; border-bottom: 1px solid #e7e5e4; text-align: right;">${formatAmount(invoice.wholesale_price * invoice.quantity)}</td>
+          <td style="font-weight: 500;">${invoice.quantity}</td>
+          <td style="font-weight: 600; color: #1c1917;">${orderName}</td>
+          <td style="text-align: right;">${formatAmount(invoice.wholesale_price)}</td>
+          <td style="text-align: right; font-weight: 600;">${formatAmount(invoice.wholesale_price * invoice.quantity)}</td>
         </tr>`;
 
     const termsHtml = invoice.terms_and_conditions 
@@ -189,115 +189,220 @@ export function InvoiceViewer({
       <head>
         <title>Invoice ${invoice.invoice_number}</title>
         <style>
-          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Bebas+Neue&family=Great+Vibes&display=swap');
+          @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
           * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Inter', -apple-system, sans-serif; padding: 40px; background: white; color: #1c1917; font-size: 14px; }
-          .header { margin-bottom: 40px; }
-          .invoice-title { font-family: 'Bebas Neue', sans-serif; font-size: 48px; font-weight: 700; color: #0369a1; text-decoration: underline; text-underline-offset: 8px; }
-          .company-info { margin-top: 16px; font-size: 12px; line-height: 1.6; }
-          .company-name { font-weight: 700; font-size: 13px; }
-          .bill-section { display: flex; justify-content: space-between; margin-bottom: 40px; }
+          html, body { height: 100%; }
+          body { font-family: 'Inter', -apple-system, sans-serif; background: white; color: #1c1917; font-size: 14px; position: relative; min-height: 100vh; }
+          .page-wrapper { padding: 48px 56px 100px 56px; min-height: 100vh; position: relative; }
+
+          /* WDS Logo */
+          .logo-section { position: absolute; top: 40px; right: 56px; text-align: right; }
+          .logo-text { font-weight: 800; font-size: 52px; color: #1c1917; letter-spacing: 4px; line-height: 1; }
+          .logo-dot { display: inline-block; width: 14px; height: 14px; background: #D4511E; border-radius: 3px; position: relative; top: -32px; margin-left: 2px; }
+          .logo-dots { position: relative; top: -38px; left: 2px; }
+          .logo-dots span { display: inline-block; width: 6px; height: 6px; background: #D4511E; border-radius: 1.5px; margin: 0 1px; }
+
+          /* Company Info */
+          .company-section { margin-bottom: 48px; max-width: 65%; }
+          .company-name { font-weight: 700; font-size: 16px; color: #1c1917; margin-bottom: 2px; }
+          .company-brand { font-weight: 600; font-size: 13px; color: #D4511E; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+          .company-detail { font-size: 11.5px; line-height: 1.7; color: #57534e; }
+
+          /* Invoice Title */
+          .invoice-title-section { margin-bottom: 36px; }
+          .invoice-title { font-weight: 800; font-size: 32px; color: #D4511E; text-transform: uppercase; letter-spacing: 3px; }
+
+          /* Bill To & Meta */
+          .info-grid { display: flex; justify-content: space-between; margin-bottom: 32px; }
           .bill-to { flex: 1; }
-          .bill-to-label { color: #0369a1; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
-          .invoice-meta { text-align: right; }
-          .invoice-meta-row { display: flex; justify-content: flex-end; gap: 24px; margin-bottom: 4px; }
-          .invoice-meta-label { color: #0369a1; font-weight: 700; font-size: 12px; text-transform: uppercase; }
-          .invoice-meta-value { min-width: 100px; text-align: right; }
-          .divider { height: 3px; background: linear-gradient(90deg, #0369a1, #0369a1 50%, #f59e0b 50%, #f59e0b); margin-bottom: 24px; }
-          table { width: 100%; border-collapse: collapse; margin-bottom: 40px; }
-          th { padding: 12px; text-align: left; color: #0369a1; font-weight: 700; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #e7e5e4; }
+          .section-label { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #D4511E; margin-bottom: 10px; }
+          .client-name { font-weight: 600; font-size: 15px; color: #1c1917; margin-bottom: 4px; }
+          .client-address { font-size: 13px; color: #57534e; line-height: 1.6; }
+          .invoice-meta { text-align: right; min-width: 240px; }
+          .meta-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f5f5f4; }
+          .meta-row:last-child { border-bottom: none; }
+          .meta-label { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #78716c; }
+          .meta-value { font-weight: 500; font-size: 13px; color: #1c1917; }
+
+          /* Divider */
+          .divider { height: 3px; background: #D4511E; margin-bottom: 0; }
+
+          /* Table */
+          table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
+          thead { background: #D4511E; }
+          th { padding: 14px 16px; text-align: left; color: white; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
           th:nth-child(3), th:nth-child(4) { text-align: right; }
-          .total-section { display: flex; justify-content: flex-end; margin-bottom: 40px; }
-          .total-box { text-align: right; }
-          .total-row { display: flex; justify-content: space-between; gap: 48px; padding: 8px 0; border-bottom: 1px solid #e7e5e4; }
-          .grand-total { font-size: 18px; font-weight: 700; border-bottom: none; padding-top: 12px; }
-          .terms-section { max-width: 400px; margin-left: auto; padding: 20px; border: 1px solid #e7e5e4; }
-          .terms-title { color: #0369a1; font-weight: 700; font-size: 14px; margin-bottom: 12px; text-transform: uppercase; }
-          .terms-content { font-size: 12px; line-height: 1.8; color: #57534e; }
-          .footer { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 40px; }
-          .thank-you { font-family: 'Great Vibes', cursive; font-size: 48px; color: #1e40af; }
-          .signature-note { font-size: 11px; color: #78716c; max-width: 300px; text-align: right; }
-          @media print { 
-            body { padding: 20px; }
-            @page { margin: 20mm; }
+          td { padding: 14px 16px; border-bottom: 1px solid #f0eeec; font-size: 13px; }
+          tbody tr:nth-child(even) { background: #fafaf9; }
+          tbody tr:hover { background: #f5f5f4; }
+
+          /* Totals */
+          .totals-section { display: flex; justify-content: flex-end; margin-bottom: 36px; }
+          .totals-box { min-width: 280px; }
+          .total-row { display: flex; justify-content: space-between; padding: 10px 16px; font-size: 13px; }
+          .total-row.subtotal { border-bottom: 1px solid #e7e5e4; color: #57534e; }
+          .total-row.grand-total { background: #D4511E; color: white; font-weight: 700; font-size: 16px; margin-top: 4px; }
+
+          /* Payment info */
+          .payment-info { display: flex; justify-content: flex-end; margin-bottom: 32px; }
+          .payment-box { min-width: 280px; padding: 12px 16px; background: #fef3c7; border-left: 3px solid #f59e0b; }
+          .payment-row { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+          .payment-row.remaining { font-weight: 600; color: #b45309; }
+
+          /* Terms */
+          .terms-section { margin-top: 24px; padding: 20px 24px; border: 1px solid #e7e5e4; border-radius: 4px; }
+          .terms-title { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #D4511E; margin-bottom: 12px; }
+          .terms-content { font-size: 11.5px; line-height: 1.8; color: #57534e; }
+          .terms-agreement { margin-top: 14px; font-size: 10.5px; color: #a8a29e; font-style: italic; }
+
+          /* Client Notes */
+          .notes-section { margin-top: 20px; padding: 16px 20px; background: #fafaf9; border-radius: 4px; }
+          .notes-title { font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #78716c; margin-bottom: 8px; }
+          .notes-content { font-size: 12px; line-height: 1.7; color: #57534e; }
+
+          /* Footer bar */
+          .footer-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 48px; background: #D4511E; }
+          .footer-content { height: 100%; display: flex; align-items: center; justify-content: center; padding: 0 56px; }
+          .footer-text { color: rgba(255,255,255,0.85); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; }
+
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .page-wrapper { padding: 36px 44px 90px 44px; }
+            .footer-bar { position: fixed; }
+            @page { margin: 0; size: A4; }
           }
         </style>
       </head>
       <body>
-        <div class="header">
-          <div class="invoice-title">INVOICE</div>
-          <div class="company-info">
+        <div class="page-wrapper">
+          <!-- WDS Logo -->
+          <div class="logo-section">
+            <div>
+              <span class="logo-dots"><span></span><span></span><span></span></span>
+            </div>
+            <div class="logo-text">WDS</div>
+          </div>
+
+          <!-- Company Info -->
+          <div class="company-section">
             <div class="company-name">MOHAMMAD AL SAYED</div>
-            <div>WORKDUSHOP</div>
-            <div>ROSEVELT TEKSTİL İÇ VE DIŞ TİCARET LİMİTED ŞİRKETİ</div>
-            <div>ŞEHREMİNİ MAH. VELET ÇELEBİ SK.</div>
-            <div>NO:9/A FAİTH/İST</div>
-            <div>FAİTH V.D:7352021157</div>
-            <div>MERSİS NO:0735202115700001</div>
-          </div>
-        </div>
-
-        <div class="bill-section">
-          <div class="bill-to">
-            <div class="bill-to-label">BILL TO</div>
-            <div style="font-weight: 500;">${clientName}</div>
-            ${clientAddress ? `<div>${clientAddress}</div>` : ''}
-          </div>
-          <div class="invoice-meta">
-            <div class="invoice-meta-row">
-              <span class="invoice-meta-label">INVOICE #</span>
-              <span class="invoice-meta-value">${escapeHtml(invoice.invoice_number.replace('INV-', '').replace(/-/g, ''))}</span>
-            </div>
-            <div class="invoice-meta-row">
-              <span class="invoice-meta-label">INVOICE DATE</span>
-              <span class="invoice-meta-value">${format(new Date(invoice.created_at), 'dd/MM/yyyy')}</span>
-            </div>
-            ${invoice.due_date ? `
-            <div class="invoice-meta-row">
-              <span class="invoice-meta-label">DUE DATE</span>
-              <span class="invoice-meta-value">${format(new Date(invoice.due_date), 'dd/MM/yyyy')}</span>
-            </div>
-            ` : ''}
-          </div>
-        </div>
-
-        <div class="divider"></div>
-
-        <table>
-          <thead>
-            <tr>
-              <th style="width: 60px;">QTY</th>
-              <th>DESCRIPTION</th>
-              <th style="width: 100px;">UNIT PRICE</th>
-              <th style="width: 120px;">AMOUNT</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
-
-        <div class="total-section">
-          <div class="total-box">
-            <div class="total-row grand-total">
-              <span>Total</span>
-              <span>${formatAmount(subtotal)}</span>
+            <div class="company-brand">WorkDuShop</div>
+            <div class="company-detail">
+              ROSEVELT TEKSTİL İÇ VE DIŞ TİCARET LİMİTED ŞİRKETİ<br>
+              ŞEHREMİNİ MAH. VELET ÇELEBİ SK. NO:9/A FAİTH/İST<br>
+              FAİTH V.D: 7352021157 &nbsp;|&nbsp; MERSİS NO: 0735202115700001
             </div>
           </div>
-        </div>
 
-        ${invoice.terms_and_conditions ? `
-        <div class="terms-section">
-          <div class="terms-title">TERMS & CONDITIONS</div>
-          <div class="terms-content">${termsHtml}</div>
-          <div style="margin-top: 16px; font-size: 11px; color: #57534e;">
-            By signing this invoice, I agree to the terms and conditions of this quote and order form and any documents incorporated herein.
+          <!-- Invoice Title -->
+          <div class="invoice-title-section">
+            <div class="invoice-title">Invoice</div>
           </div>
-        </div>
-        ` : ''}
 
-        <div class="footer">
-          <div class="thank-you">Thank you</div>
+          <!-- Bill To & Invoice Meta -->
+          <div class="info-grid">
+            <div class="bill-to">
+              <div class="section-label">Bill To</div>
+              <div class="client-name">${clientName}</div>
+              ${clientAddress ? `<div class="client-address">${clientAddress}</div>` : ''}
+            </div>
+            <div class="invoice-meta">
+              <div class="meta-row">
+                <span class="meta-label">Invoice #</span>
+                <span class="meta-value">${invoiceNumber}</span>
+              </div>
+              <div class="meta-row">
+                <span class="meta-label">Date</span>
+                <span class="meta-value">${format(new Date(invoice.created_at), 'dd/MM/yyyy')}</span>
+              </div>
+              ${invoice.due_date ? `
+              <div class="meta-row">
+                <span class="meta-label">Due Date</span>
+                <span class="meta-value">${format(new Date(invoice.due_date), 'dd/MM/yyyy')}</span>
+              </div>
+              ` : ''}
+              ${invoice.order?.order_number ? `
+              <div class="meta-row">
+                <span class="meta-label">Order Ref</span>
+                <span class="meta-value">${escapeHtml(invoice.order.order_number)}</span>
+              </div>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- Divider -->
+          <div class="divider"></div>
+
+          <!-- Items Table -->
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 60px;">QTY</th>
+                <th>Description</th>
+                <th style="width: 110px;">Unit Price</th>
+                <th style="width: 120px;">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${itemsHtml}
+            </tbody>
+          </table>
+
+          <!-- Totals -->
+          <div class="totals-section">
+            <div class="totals-box">
+              <div class="total-row subtotal">
+                <span>Subtotal</span>
+                <span>${formatAmount(subtotal)}</span>
+              </div>
+              <div class="total-row grand-total">
+                <span>Total</span>
+                <span>${formatAmount(subtotal)}</span>
+              </div>
+            </div>
+          </div>
+
+          ${invoice.amount_paid > 0 ? `
+          <!-- Payment Info -->
+          <div class="payment-info">
+            <div class="payment-box">
+              <div class="payment-row">
+                <span>Amount Paid</span>
+                <span>${formatAmount(invoice.amount_paid)}</span>
+              </div>
+              <div class="payment-row remaining">
+                <span>Balance Due</span>
+                <span>${formatAmount(subtotal - invoice.amount_paid)}</span>
+              </div>
+            </div>
+          </div>
+          ` : ''}
+
+          ${invoice.terms_and_conditions ? `
+          <!-- Terms & Conditions -->
+          <div class="terms-section">
+            <div class="terms-title">Terms & Conditions</div>
+            <div class="terms-content">${termsHtml}</div>
+            <div class="terms-agreement">
+              By signing this invoice, I agree to the terms and conditions of this quote and order form and any documents incorporated herein.
+            </div>
+          </div>
+          ` : ''}
+
+          ${invoice.client_notes ? `
+          <!-- Notes -->
+          <div class="notes-section">
+            <div class="notes-title">Notes</div>
+            <div class="notes-content">${escapeHtml(invoice.client_notes).split('\\n').map(line => `<div>${line}</div>`).join('')}</div>
+          </div>
+          ` : ''}
+        </div>
+
+        <!-- Orange Footer Bar -->
+        <div class="footer-bar">
+          <div class="footer-content">
+            <span class="footer-text">WorkDuShop &nbsp;&bull;&nbsp; Quality Garment Manufacturing</span>
+          </div>
         </div>
       </body>
       </html>
