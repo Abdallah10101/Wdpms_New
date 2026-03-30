@@ -11,7 +11,9 @@ import {
 } from 'recharts';
 import { PRODUCTION_STAGES, normalizeStage } from '@/lib/types';
 import { format, subMonths, startOfMonth, endOfMonth } from 'date-fns';
-import { BarChart3 } from 'lucide-react';
+import { BarChart3, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export default function Analytics() {
   const navigate = useNavigate();
@@ -23,6 +25,9 @@ export default function Analytics() {
   const [topClients, setTopClients] = useState<{ name: string; orders: number }[]>([]);
   const [leadConversion, setLeadConversion] = useState<{ name: string; value: number }[]>([]);
   const [onTimeRate, setOnTimeRate] = useState<number>(0);
+  const [analyticsCurrency, setAnalyticsCurrency] = useState<'TRY' | 'USD' | 'EUR'>('TRY');
+  const [ratesFromEUR, setRatesFromEUR] = useState<Record<string, number>>({});
+  const [rateLoading, setRateLoading] = useState(false);
 
   useEffect(() => {
     if (!authLoading && !user) navigate('/auth');
@@ -32,8 +37,36 @@ export default function Analytics() {
   useEffect(() => {
     if (user && role === 'admin') {
       fetchAnalyticsData();
+      fetchRates();
     }
   }, [user, role]);
+
+  const fetchRates = async () => {
+    setRateLoading(true);
+    try {
+      const res = await fetch('https://open.er-api.com/v6/latest/EUR');
+      const data = await res.json();
+      if (data.result === 'success' && data.rates) {
+        setRatesFromEUR(data.rates);
+      }
+    } catch {
+      // fallback
+    } finally {
+      setRateLoading(false);
+    }
+  };
+
+  const getCurrencySymbol = (c: string) => {
+    const symbols: Record<string, string> = { EUR: '€', USD: '$', TRY: '₺' };
+    return symbols[c] ?? c;
+  };
+
+  const convertFromTRY = (tryAmount: number): number => {
+    if (analyticsCurrency === 'TRY') return tryAmount;
+    const tryRate = ratesFromEUR['TRY'] || 1;
+    const targetRate = analyticsCurrency === 'EUR' ? 1 : (ratesFromEUR[analyticsCurrency] || 1);
+    return tryAmount * (targetRate / tryRate);
+  };
 
   const fetchAnalyticsData = async () => {
     try {
@@ -111,12 +144,27 @@ export default function Analytics() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <BarChart3 className="h-6 w-6" />
-            Analytics
-          </h1>
-          <p className="text-muted-foreground">Production metrics and business insights</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
+              <BarChart3 className="h-6 w-6" />
+              Analytics
+            </h1>
+            <p className="text-muted-foreground">Production metrics and business insights</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Revenue Currency:</span>
+          <Select value={analyticsCurrency} onValueChange={(v) => setAnalyticsCurrency(v as 'TRY' | 'USD' | 'EUR')}>
+            <SelectTrigger className="w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="TRY">₺ TRY</SelectItem>
+              <SelectItem value="USD">$ USD</SelectItem>
+              <SelectItem value="EUR">€ EUR</SelectItem>
+            </SelectContent>
+          </Select>
+          </div>
         </div>
 
         {isLoading ? (
@@ -142,9 +190,9 @@ export default function Analytics() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">
-                    ₺{revenueByMonth.reduce((s, m) => s + m.revenue, 0).toLocaleString()}
+                    {getCurrencySymbol(analyticsCurrency)}{Math.round(convertFromTRY(revenueByMonth.reduce((s, m) => s + m.revenue, 0))).toLocaleString()}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">From paid invoices</p>
+                  <p className="text-xs text-muted-foreground mt-1">From paid invoices ({analyticsCurrency})</p>
                 </CardContent>
               </Card>
               <Card>
@@ -166,16 +214,16 @@ export default function Analytics() {
               {/* Revenue over time */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Revenue (Last 6 Months)</CardTitle>
+                  <CardTitle className="text-base">Revenue (Last 6 Months) — {analyticsCurrency}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={220}>
-                    <LineChart data={revenueByMonth}>
+                    <LineChart data={revenueByMonth.map(m => ({ ...m, converted: Math.round(convertFromTRY(m.revenue)) }))}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
                       <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `₺${(v / 1000).toFixed(0)}k`} />
-                      <Tooltip formatter={(v: number) => [`₺${v.toLocaleString()}`, 'Revenue']} />
-                      <Line type="monotone" dataKey="revenue" stroke="#e8560c" strokeWidth={2} dot={{ r: 4 }} />
+                      <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `${getCurrencySymbol(analyticsCurrency)}${(v / 1000).toFixed(0)}k`} />
+                      <Tooltip formatter={(v: number) => [`${getCurrencySymbol(analyticsCurrency)}${v.toLocaleString()}`, 'Revenue']} />
+                      <Line type="monotone" dataKey="converted" stroke="#e8560c" strokeWidth={2} dot={{ r: 4 }} />
                     </LineChart>
                   </ResponsiveContainer>
                 </CardContent>

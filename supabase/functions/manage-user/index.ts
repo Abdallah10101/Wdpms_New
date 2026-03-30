@@ -67,6 +67,18 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ message: 'User reactivated' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
+    if (action === 'delete') {
+      if (!userId) return new Response(JSON.stringify({ error: 'Missing userId' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      if (userId === callingUser.id) return new Response(JSON.stringify({ error: 'Cannot delete yourself' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      // Delete from user_roles and profiles first
+      await supabaseAdmin.from('user_roles').delete().eq('user_id', userId)
+      await supabaseAdmin.from('profiles').delete().eq('user_id', userId)
+      // Delete from auth.users
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+      if (deleteError) return new Response(JSON.stringify({ error: deleteError.message }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ message: 'User deleted' }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+
     if (action === 'get_statuses') {
       const statuses: Record<string, boolean> = {}
       for (const uid of (userIds || [])) {

@@ -27,7 +27,17 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Plus, Users, Mail, Loader2, Copy, Check, ShieldOff, ShieldCheck, RefreshCw, KeyRound } from 'lucide-react';
+import { Plus, Users, Mail, Loader2, Copy, Check, ShieldOff, ShieldCheck, RefreshCw, KeyRound, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { Profile, AppRole } from '@/lib/types';
 
 const OTP_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -318,6 +328,35 @@ export default function Team() {
       toast({ title: 'Error', description: message, variant: 'destructive' });
     } finally {
       setSuspendingUser(null);
+    }
+  };
+
+  const [deletingUser, setDeletingUser] = useState<TeamMember | null>(null);
+
+  const handleDeleteUser = async (member: TeamMember) => {
+    try {
+      const { data, error } = await supabase.functions.invoke('manage-user', {
+        body: { action: 'delete', userId: member.user_id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      toast({
+        title: 'User Deleted',
+        description: `${member.full_name} has been permanently deleted.`,
+      });
+      logActivity('user_deleted', member.full_name, { email: member.email });
+      setDeletingUser(null);
+      fetchTeamMembers();
+    } catch (error: unknown) {
+      let message = 'Failed to delete user.';
+      try {
+        const body = await (error as any).context?.json?.();
+        message = body?.error || (error instanceof Error ? error.message : message);
+      } catch {
+        message = error instanceof Error ? error.message : message;
+      }
+      toast({ title: 'Error', description: message, variant: 'destructive' });
     }
   };
 
@@ -655,6 +694,17 @@ export default function Team() {
                           )}
                         </Button>
                       )}
+                      {member.user_id !== user?.id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDeletingUser(member)}
+                          className="text-destructive hover:text-destructive"
+                          title="Delete user"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                       {suspendedUsers.has(member.user_id) && (
                         <Badge className="bg-red-100 text-red-700 text-xs">Suspended</Badge>
                       )}
@@ -694,6 +744,28 @@ export default function Team() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Delete User Confirmation */}
+      <AlertDialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete User</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete <strong>{deletingUser?.full_name}</strong> ({deletingUser?.email})?
+              This will remove their account, profile, and role. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deletingUser && handleDeleteUser(deletingUser)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </DashboardLayout>
   );
 }

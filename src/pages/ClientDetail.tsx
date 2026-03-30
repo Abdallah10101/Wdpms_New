@@ -21,6 +21,7 @@ import {
   CheckCircle2,
   Trash2,
   BarChart3,
+  CalendarDays,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -34,6 +35,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { PRODUCTION_STAGES, normalizeStage, type Client, type Order, type OrderFile } from '@/lib/types';
+import { format } from 'date-fns';
 import OrderAnalysisTab from '@/components/order-analysis/OrderAnalysisTab';
 
 export default function ClientDetail() {
@@ -153,6 +155,23 @@ export default function ClientDetail() {
     return acc;
   }, {} as Record<string, Order[]>);
 
+  // Group orders by month for overview
+  const ordersByMonth = orders.reduce((acc, order) => {
+    const monthKey = format(new Date(order.created_at), 'yyyy-MM');
+    const monthLabel = format(new Date(order.created_at), 'MMMM yyyy');
+    if (!acc[monthKey]) acc[monthKey] = { label: monthLabel, orders: [], totalQty: 0, bulkQty: 0, sampleQty: 0 };
+    acc[monthKey].orders.push(order);
+    acc[monthKey].totalQty += order.quantity || 0;
+    if (order.current_stage === 'sample' || order.size?.toLowerCase().includes('sample')) {
+      acc[monthKey].sampleQty += order.quantity || 0;
+    } else {
+      acc[monthKey].bulkQty += order.quantity || 0;
+    }
+    return acc;
+  }, {} as Record<string, { label: string; orders: Order[]; totalQty: number; bulkQty: number; sampleQty: number }>);
+
+  const sortedMonths = Object.entries(ordersByMonth).sort(([a], [b]) => b.localeCompare(a));
+
   if (authLoading || !user) {
     return null;
   }
@@ -252,6 +271,10 @@ export default function ClientDetail() {
         {/* Tabs for Orders and Receipts */}
         <Tabs defaultValue="production" className="space-y-4">
           <TabsList>
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <CalendarDays className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
             <TabsTrigger value="production" className="flex items-center gap-2">
               <Package className="h-4 w-4" />
               Production ({activeOrders.length})
@@ -271,6 +294,83 @@ export default function ClientDetail() {
               </TabsTrigger>
             )}
           </TabsList>
+
+          {/* Overview Tab - Monthly summary */}
+          <TabsContent value="overview" className="space-y-4">
+            {/* Total summary */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold">{orders.length}</p>
+                  <p className="text-sm text-muted-foreground">Total Orders</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold text-orange-500">
+                    {orders.reduce((s, o) => s + (o.quantity || 0), 0).toLocaleString()}
+                  </p>
+                  <p className="text-sm text-muted-foreground">Total Products</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="p-4 text-center">
+                  <p className="text-3xl font-bold text-green-500">{completedOrders.length}</p>
+                  <p className="text-sm text-muted-foreground">Delivered</p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Monthly breakdown */}
+            {sortedMonths.length === 0 ? (
+              <Card>
+                <CardContent className="flex flex-col items-center justify-center py-12">
+                  <CalendarDays className="h-12 w-12 text-muted-foreground/50" />
+                  <p className="mt-4 text-muted-foreground">No orders yet</p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {sortedMonths.map(([key, data]) => (
+                  <Card key={key} className="hover:border-primary/50 transition-colors">
+                    <CardHeader className="pb-2">
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <CalendarDays className="h-4 w-4 text-orange-500" />
+                        {data.label}
+                      </CardTitle>
+                      <CardDescription>{data.orders.length} order{data.orders.length !== 1 ? 's' : ''}</CardDescription>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      {data.bulkQty > 0 && (
+                        <p className="text-sm">
+                          <span className="text-orange-500 font-semibold">Bulk:</span>{' '}
+                          <span className="font-medium">{data.bulkQty.toLocaleString()} products</span>
+                        </p>
+                      )}
+                      {data.sampleQty > 0 && (
+                        <p className="text-sm">
+                          <span className="text-green-500 font-semibold">Samples:</span>{' '}
+                          <span className="font-medium">{data.sampleQty.toLocaleString()} products</span>
+                        </p>
+                      )}
+                      <div className="pt-2 border-t">
+                        {data.orders.map((order) => (
+                          <div
+                            key={order.id}
+                            className="flex items-center justify-between py-1 text-sm cursor-pointer hover:text-primary"
+                            onClick={() => navigate(`/orders/${order.id}`)}
+                          >
+                            <span className="truncate mr-2">{order.product_name}</span>
+                            <span className="text-muted-foreground whitespace-nowrap">x{order.quantity}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
 
           {/* Production Tab - Kanban-like view */}
           <TabsContent value="production" className="space-y-4">

@@ -45,6 +45,7 @@ export interface Invoice {
   wholesale_price: number;
   retail_price: number;
   exchange_rate: number;
+  currency?: string | null;
   accessories_detail: any[];
   amount_paid: number;
   due_date: string | null;
@@ -126,16 +127,18 @@ export function InvoiceViewer({
 
   if (!invoice) return null;
 
+  const effectiveCurrency = invoice.currency || currency;
+
   const formatAmount = (value: number): string => {
     try {
       return new Intl.NumberFormat('en-US', {
         style: 'currency',
-        currency,
+        currency: effectiveCurrency,
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       }).format(value);
     } catch {
-      return `${currency} ${value.toFixed(2)}`;
+      return `${effectiveCurrency} ${value.toFixed(2)}`;
     }
   };
   

@@ -68,6 +68,8 @@ interface CreateInvoiceDialogProps {
   onSuccess?: (invoice?: CreatedInvoiceInfo) => void;
   currency?: string;
   exchangeRate?: number;
+  availableCurrencies?: string[];
+  ratesFromEUR?: Record<string, number>;
 }
 
 const DEFAULT_INCLUSIONS = [
@@ -103,6 +105,8 @@ export function CreateInvoiceDialog({
   onSuccess,
   currency: propCurrency = 'EUR',
   exchangeRate: propExchangeRate = 50.43,
+  availableCurrencies = ['EUR', 'USD', 'GBP', 'TRY', 'AED', 'SAR', 'JPY', 'CNY'],
+  ratesFromEUR = {},
 }: CreateInvoiceDialogProps) {
   const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
@@ -111,19 +115,28 @@ export function CreateInvoiceDialog({
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [dueDate, setDueDate] = useState<Date | undefined>();
+  const [invoiceCurrency, setInvoiceCurrency] = useState(propCurrency);
   const [termsAndConditions, setTermsAndConditions] = useState(() => getDefaultTerms(propCurrency));
   const [clientNotes, setClientNotes] = useState('');
   const [internalNotes, setInternalNotes] = useState('');
   const [exchangeRate, setExchangeRate] = useState(propExchangeRate);
 
-  // Sync exchange rate and terms when props change
+  // Update exchange rate when invoice currency changes
   useEffect(() => {
-    setExchangeRate(propExchangeRate);
-  }, [propExchangeRate]);
+    if (invoiceCurrency === 'EUR') {
+      setExchangeRate(1);
+    } else if (ratesFromEUR[invoiceCurrency]) {
+      setExchangeRate(+(ratesFromEUR[invoiceCurrency]).toFixed(4));
+    }
+    setTermsAndConditions(getDefaultTerms(invoiceCurrency));
+  }, [invoiceCurrency, ratesFromEUR]);
 
+  // Sync default currency from prop on open
   useEffect(() => {
-    setTermsAndConditions(getDefaultTerms(propCurrency));
-  }, [propCurrency]);
+    if (open) {
+      setInvoiceCurrency(propCurrency);
+    }
+  }, [open, propCurrency]);
   
   // Line items
   const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([
@@ -252,10 +265,11 @@ export function CreateInvoiceDialog({
       const invoiceData = {
         client_id: selectedClientId,
         order_id: lineItems[0]?.orderId || null, // Primary order reference
-        invoice_number: invoiceNumber || '', // Will be auto-generated if empty
+        invoice_number: invoiceNumber || `INV-${new Date().getFullYear()}-${String(Date.now()).slice(-5)}`,
         order_name: lineItems.map(i => i.productName).filter(Boolean).join(', '),
         quantity: lineItems.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
         exchange_rate: exchangeRate,
+        currency: invoiceCurrency,
         subtotal: subtotal,
         total: subtotal,
         wholesale_price: subtotal,
@@ -314,7 +328,7 @@ export function CreateInvoiceDialog({
       setDueDate(undefined);
       setClientNotes('');
       setInternalNotes('');
-      setTermsAndConditions(getDefaultTerms(propCurrency));
+      setTermsAndConditions(getDefaultTerms(invoiceCurrency));
       setLineItems([{ orderId: null, productName: '', description: '', inclusions: [], quantity: 1, unitPrice: 0 }]);
     } catch (error: any) {
       console.error('Error creating invoice:', error);
@@ -366,7 +380,7 @@ export function CreateInvoiceDialog({
                 <Input
                   value={invoiceNumber}
                   onChange={(e) => setInvoiceNumber(e.target.value)}
-                  placeholder="INV-2025-0001"
+                  placeholder="INV-2026-0001"
                 />
               </div>
             </div>
@@ -382,8 +396,8 @@ export function CreateInvoiceDialog({
               </div>
             )}
 
-            {/* Invoice Date & Due Date */}
-            <div className="grid grid-cols-3 gap-4">
+            {/* Invoice Date, Due Date, Currency */}
+            <div className="grid grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label>Invoice Date</Label>
                 <Input
@@ -418,7 +432,20 @@ export function CreateInvoiceDialog({
                 </Popover>
               </div>
               <div className="space-y-2">
-                <Label>Exchange Rate (1 {propCurrency} = TRY)</Label>
+                <Label>Currency</Label>
+                <Select value={invoiceCurrency} onValueChange={setInvoiceCurrency}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[260px]">
+                    {availableCurrencies.map((c) => (
+                      <SelectItem key={c} value={c}>{getCurrencySymbol(c)} {c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Exchange Rate (1 {invoiceCurrency} = TRY)</Label>
                 <Input
                   type="number"
                   step="0.01"
@@ -492,7 +519,7 @@ export function CreateInvoiceDialog({
                     </div>
 
                     <div className="space-y-2">
-                      <Label className="text-xs">Unit Price ({propCurrency})</Label>
+                      <Label className="text-xs">Unit Price ({invoiceCurrency})</Label>
                       <Input
                         type="number"
                         step="0.01"
@@ -516,7 +543,7 @@ export function CreateInvoiceDialog({
                     <div className="space-y-2">
                       <Label className="text-xs">Amount</Label>
                       <div className="h-10 px-3 py-2 rounded-md border bg-muted flex items-center font-medium">
-                        {getCurrencySymbol(propCurrency)}{((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toFixed(2)}
+                        {getCurrencySymbol(invoiceCurrency)}{((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)).toFixed(2)}
                       </div>
                     </div>
                   </div>
@@ -552,11 +579,11 @@ export function CreateInvoiceDialog({
               <div className="p-4 bg-primary/5 rounded-lg space-y-2">
                 <div className="flex justify-between text-sm">
                   <span>Subtotal</span>
-                  <span className="font-medium">{getCurrencySymbol(propCurrency)}{calculateSubtotal().toFixed(2)}</span>
+                  <span className="font-medium">{getCurrencySymbol(invoiceCurrency)}{calculateSubtotal().toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between font-semibold text-lg border-t pt-2">
                   <span>Total</span>
-                  <span>{getCurrencySymbol(propCurrency)}{calculateSubtotal().toFixed(2)}</span>
+                  <span>{getCurrencySymbol(invoiceCurrency)}{calculateSubtotal().toFixed(2)}</span>
                 </div>
               </div>
             </div>

@@ -600,6 +600,8 @@ export default function Invoices() {
       <CreateInvoiceDialog
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
+        availableCurrencies={currencies}
+        ratesFromEUR={ratesFromEUR}
         onSuccess={async (invoiceInfo) => {
           // Log activity first before fetching
           if (invoiceInfo) {
