@@ -24,6 +24,7 @@ import OverdueOrders from "./pages/OverdueOrders";
 import ResetPassword from "./pages/ResetPassword";
 import Analytics from "./pages/Analytics";
 import AuditLog from "./pages/AuditLog";
+import Todos from "./pages/Todos";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ const App = () => (
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/audit-log" element={<AuditLog />} />
+            <Route path="/todos" element={<Todos />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

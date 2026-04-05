@@ -1,4 +1,4 @@
-import { ReactNode, useState } from 'react';
+import { ReactNode, useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ import {
   BarChart3,
   History,
   Search,
+  ListTodo,
 } from 'lucide-react';
 import { NotificationBell } from '@/components/notifications/NotificationBell';
 import { ThemeToggle } from '@/components/ThemeToggle';
@@ -96,6 +97,12 @@ const navItems: NavItem[] = [
     roles: ['admin', 'team'],
   },
   {
+    label: 'To Do List',
+    href: '/todos',
+    icon: <ListTodo className="h-5 w-5" />,
+    roles: ['admin', 'team'],
+  },
+  {
     label: 'Clients',
     href: '/clients',
     icon: <Building2 className="h-5 w-5" />,
@@ -160,7 +167,7 @@ interface SearchResult {
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { profile, role, signOut } = useAuth();
+  const { profile, role, signOut, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -172,6 +179,60 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const filteredNavItems = navItems.filter(
     (item) => role && item.roles.includes(role)
   );
+
+  // Check for due/overdue tasks once per session and create notifications
+  useEffect(() => {
+    if (!user || !role || role === 'client') return;
+    const sessionKey = `due_tasks_checked_${user.id}_${new Date().toISOString().slice(0, 10)}`;
+    if (sessionStorage.getItem(sessionKey)) return;
+    sessionStorage.setItem(sessionKey, '1');
+
+    (async () => {
+      try {
+        const todayStr = new Date().toISOString().slice(0, 10);
+        // Fetch tasks that are due today or overdue and not done
+        const { data: tasks, error } = await (supabase
+          .from('order_tasks') as any)
+          .select('id, title, due_date, order_id, order:orders(order_number)')
+          .lte('due_date', todayStr)
+          .neq('status', 'done');
+        if (error || !tasks || tasks.length === 0) return;
+
+        // Fetch existing notifications for today to avoid duplicates
+        const { data: existing } = await (supabase
+          .from('notifications') as any)
+          .select('metadata')
+          .eq('user_id', user.id)
+          .eq('type', 'task_due')
+          .gte('created_at', todayStr);
+        const existingTaskIds = new Set<string>(
+          (existing || [])
+            .map((n: any) => n?.metadata?.task_id)
+            .filter(Boolean)
+        );
+
+        const newNotifications = tasks
+          .filter((t: any) => !existingTaskIds.has(t.id))
+          .map((t: any) => {
+            const isOverdue = t.due_date < todayStr;
+            return {
+              user_id: user.id,
+              type: 'task_due',
+              title: isOverdue ? 'Overdue Task' : 'Task Due Today',
+              message: `${t.title}${t.order?.order_number ? ` (${t.order.order_number})` : ''}`,
+              order_id: t.order_id,
+              metadata: { task_id: t.id, due_date: t.due_date },
+            };
+          });
+
+        if (newNotifications.length > 0) {
+          await (supabase.from('notifications') as any).insert(newNotifications);
+        }
+      } catch (err) {
+        console.error('Failed to check due tasks:', err);
+      }
+    })();
+  }, [user, role]);
 
   const handleSignOut = async () => {
     await signOut();

@@ -282,7 +282,7 @@ export function CreateInvoiceDialog({
 
       const { data: invoice, error: invoiceError } = await supabase
         .from('invoices')
-        .insert(invoiceData)
+        .insert(invoiceData as any)
         .select()
         .single();
 

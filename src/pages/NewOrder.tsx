@@ -17,10 +17,26 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, Loader2, Printer, Sparkles, Waves, Layers, FlaskConical } from 'lucide-react';
+import { ArrowLeft, Loader2, Printer, Sparkles, Waves, Layers, FlaskConical, Tag, Shirt, Gift, Package as PackageIcon, Zap, Link2, Key, CircleDot } from 'lucide-react';
 import { PRIORITY_CONFIG, type Client, type OrderPriority } from '@/lib/types';
 
 type OrderType = 'sample' | 'bulk';
+
+const ACCESSORY_OPTIONS = [
+  { key: 'neck_labels', label: 'Neck Labels', icon: Tag },
+  { key: 'washing_labels', label: 'Washing Labels', icon: Shirt },
+  { key: 'thanks_cards', label: 'Thanks Cards', icon: Gift },
+  { key: 'hang_tags', label: 'Hang Tags', icon: Tag },
+  { key: 'packaging', label: 'Packaging', icon: PackageIcon },
+  { key: 'zippers', label: 'Zippers', icon: Zap },
+  { key: 'rivets', label: 'Rivets', icon: CircleDot },
+  { key: 'laces', label: 'Laces', icon: Link2 },
+  { key: 'adjustables', label: 'Adjustables', icon: Link2 },
+  { key: 'key_chain_holder', label: 'Key Chain Holder', icon: Key },
+  { key: 'buttons', label: 'Buttons', icon: CircleDot },
+] as const;
+
+type AccessoryKey = typeof ACCESSORY_OPTIONS[number]['key'];
 
 export default function NewOrder() {
   const navigate = useNavigate();
@@ -45,6 +61,20 @@ export default function NewOrder() {
     has_embroidery: false,
     has_wash_house: false,
   });
+
+  // Sample-specific fields
+  const [sampleDetails, setSampleDetails] = useState({
+    pattern_name: '',
+    pattern_maker: '',
+    references_number: '',
+    fabric_kgs: '',
+    gsm: '',
+    cut_and_sew_supplier: '',
+    qc_sign_off: '',
+  });
+  const [accessories, setAccessories] = useState<Record<AccessoryKey, { enabled: boolean; qty: string }>>(
+    () => ACCESSORY_OPTIONS.reduce((acc, a) => ({ ...acc, [a.key]: { enabled: false, qty: '' } }), {} as Record<AccessoryKey, { enabled: boolean; qty: string }>)
+  );
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -85,6 +115,20 @@ export default function NewOrder() {
       // For sample orders, start at 'sample' stage; for bulk, start at 'cutting'
       const initialStage = orderType === 'sample' ? 'sample' : 'cutting';
       
+      // Build sample_details JSON for sample orders
+      const selectedAccessories = ACCESSORY_OPTIONS
+        .filter((a) => accessories[a.key].enabled)
+        .map((a) => ({ key: a.key, label: a.label, qty: Number(accessories[a.key].qty) || 0 }));
+
+      const sampleDetailsPayload = orderType === 'sample'
+        ? {
+            ...sampleDetails,
+            fabric_kgs: sampleDetails.fabric_kgs ? Number(sampleDetails.fabric_kgs) : null,
+            gsm: sampleDetails.gsm ? Number(sampleDetails.gsm) : null,
+            accessories: selectedAccessories,
+          }
+        : null;
+
       const { data, error } = await supabase
         .from('orders')
         .insert({
@@ -102,6 +146,7 @@ export default function NewOrder() {
           has_embroidery: formData.has_embroidery,
           has_wash_house: formData.has_wash_house,
           current_stage: initialStage,
+          sample_details: sampleDetailsPayload,
         } as any)
         .select()
         .single();
@@ -332,11 +377,11 @@ export default function NewOrder() {
                   />
                 </div>
 
-                {/* Process Types */}
+                {/* Process Types / Design Types */}
                 <div className="space-y-3 sm:col-span-2">
-                  <Label>Process Types</Label>
+                  <Label>{orderType === 'sample' ? 'Design Types' : 'Process Types'}</Label>
                   <p className="text-xs text-muted-foreground">
-                    Select which processes this product will go through
+                    Select which {orderType === 'sample' ? 'design techniques' : 'processes'} this product will go through
                   </p>
                   <div className="flex flex-wrap gap-4">
                     <div className="flex items-center space-x-2">
@@ -389,6 +434,128 @@ export default function NewOrder() {
                     </div>
                   </div>
                 </div>
+
+                {/* Sample-specific fields */}
+                {orderType === 'sample' && (
+                  <>
+                    <div className="space-y-2 sm:col-span-2 pt-4 border-t">
+                      <h3 className="text-sm font-semibold">Sample Details</h3>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pattern_name">Pattern Name</Label>
+                      <Input
+                        id="pattern_name"
+                        value={sampleDetails.pattern_name}
+                        onChange={(e) => setSampleDetails({ ...sampleDetails, pattern_name: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="pattern_maker">Pattern Maker</Label>
+                      <Input
+                        id="pattern_maker"
+                        value={sampleDetails.pattern_maker}
+                        onChange={(e) => setSampleDetails({ ...sampleDetails, pattern_maker: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="references_number">References Number</Label>
+                      <Input
+                        id="references_number"
+                        value={sampleDetails.references_number}
+                        onChange={(e) => setSampleDetails({ ...sampleDetails, references_number: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fabric_kgs">Amount of Fabric (KGS)</Label>
+                      <Input
+                        id="fabric_kgs"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={sampleDetails.fabric_kgs}
+                        onChange={(e) => setSampleDetails({ ...sampleDetails, fabric_kgs: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="gsm">GSM</Label>
+                      <Input
+                        id="gsm"
+                        type="number"
+                        min="0"
+                        value={sampleDetails.gsm}
+                        onChange={(e) => setSampleDetails({ ...sampleDetails, gsm: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="cut_and_sew_supplier">Cut and Sew Supplier</Label>
+                      <Input
+                        id="cut_and_sew_supplier"
+                        value={sampleDetails.cut_and_sew_supplier}
+                        onChange={(e) => setSampleDetails({ ...sampleDetails, cut_and_sew_supplier: e.target.value })}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="qc_sign_off">QC Sign Off</Label>
+                      <Input
+                        id="qc_sign_off"
+                        value={sampleDetails.qc_sign_off}
+                        onChange={(e) => setSampleDetails({ ...sampleDetails, qc_sign_off: e.target.value })}
+                        placeholder="Name of QC who signed off"
+                      />
+                    </div>
+
+                    {/* Accessories */}
+                    <div className="space-y-3 sm:col-span-2 pt-4 border-t">
+                      <Label>Accessories</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Toggle the accessories needed and enter quantity for each
+                      </p>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {ACCESSORY_OPTIONS.map(({ key, label, icon: Icon }) => {
+                          const entry = accessories[key];
+                          return (
+                            <div key={key} className="flex items-center gap-3">
+                              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                                <Checkbox
+                                  id={`acc_${key}`}
+                                  checked={entry.enabled}
+                                  onCheckedChange={(checked) =>
+                                    setAccessories({
+                                      ...accessories,
+                                      [key]: { ...entry, enabled: checked === true },
+                                    })
+                                  }
+                                />
+                                <label
+                                  htmlFor={`acc_${key}`}
+                                  className="flex items-center gap-2 text-sm font-medium cursor-pointer truncate"
+                                >
+                                  <Icon className="h-4 w-4 text-orange-500" />
+                                  {label}
+                                </label>
+                              </div>
+                              {entry.enabled && (
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  placeholder="Qty"
+                                  value={entry.qty}
+                                  onChange={(e) =>
+                                    setAccessories({
+                                      ...accessories,
+                                      [key]: { ...entry, qty: e.target.value },
+                                    })
+                                  }
+                                  className="w-20 h-8"
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Actions */}
