@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/useAuth';
-import { ListTodo, Plus, Trash2, X, CheckSquare, Pencil, Check } from 'lucide-react';
+import { ListTodo, Plus, Trash2, X, CheckSquare, Pencil, Check, Calendar } from 'lucide-react';
 import type { OrderTask, TaskStatus } from '@/lib/types';
 import {
   AlertDialog,
@@ -29,6 +29,7 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
   const { toast } = useToast();
   const [tasks, setTasks] = useState<OrderTask[]>([]);
   const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
@@ -72,6 +73,7 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
         .insert({
           order_id: orderId,
           title: newTaskTitle.trim(),
+          due_date: newTaskDueDate || null,
           created_by: user?.id,
           sort_order: maxSortOrder + 1,
         });
@@ -79,6 +81,7 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
       if (error) throw error;
 
       setNewTaskTitle('');
+      setNewTaskDueDate('');
       fetchTasks();
       
       toast({
@@ -353,6 +356,15 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
             onChange={(e) => setNewTaskTitle(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAddTask()}
             disabled={isSubmitting}
+            className="flex-1"
+          />
+          <Input
+            type="date"
+            value={newTaskDueDate}
+            onChange={(e) => setNewTaskDueDate(e.target.value)}
+            disabled={isSubmitting}
+            className="w-36"
+            title="Due date (optional)"
           />
           <Button
             size="icon"
@@ -424,6 +436,30 @@ export function OrderTasks({ orderId }: OrderTasksProps) {
                     {task.description && (
                       <p className="text-xs text-muted-foreground mt-1">{task.description}</p>
                     )}
+                    <div className="flex items-center gap-2 mt-1">
+                      {canManageTasks && !isSelectionMode ? (
+                        <input
+                          type="date"
+                          value={task.due_date || ''}
+                          onChange={async (e) => {
+                            const newDate = e.target.value || null;
+                            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, due_date: newDate } : t));
+                            await supabase.from('order_tasks').update({ due_date: newDate }).eq('id', task.id);
+                          }}
+                          className="text-xs bg-transparent border-none outline-none text-muted-foreground cursor-pointer hover:text-primary"
+                          title="Set due date"
+                        />
+                      ) : task.due_date ? (
+                        <span className={`inline-flex items-center gap-1 text-xs ${
+                          task.status !== 'done' && new Date(task.due_date) <= new Date()
+                            ? 'text-red-500'
+                            : 'text-muted-foreground'
+                        }`}>
+                          <Calendar className="h-3 w-3" />
+                          {task.due_date}
+                        </span>
+                      ) : null}
+                    </div>
                   </>
                 )}
               </div>
