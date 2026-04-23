@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
 import { OrderKanban } from './OrderKanban';
 import { type Order } from '@/lib/types';
-import { Package, Clock, CheckCircle2 } from 'lucide-react';
+import { Package, Clock, CheckCircle2, Layers, FlaskConical } from 'lucide-react';
 
 interface OrderMonthViewProps {
   orders: Order[];
@@ -19,15 +19,28 @@ export function OrderMonthView({ orders, onOrderUpdated }: OrderMonthViewProps) 
   const activeOrders = orders.filter((o) => o.current_stage !== 'delivered');
   const completedOrders = orders.filter((o) => o.current_stage === 'delivered');
 
+  // Split active orders into bulk and sample
+  const bulkOrders = activeOrders.filter((o) => o.supplier !== 'sample');
+  const sampleOrders = activeOrders.filter((o) => o.supplier === 'sample');
+
   return (
-    <Tabs defaultValue="production" className="space-y-4">
-      <TabsList className="grid w-full max-w-md grid-cols-2">
-        <TabsTrigger value="production" className="flex items-center gap-2">
-          <Clock className="h-4 w-4" />
-          Production
-          {activeOrders.length > 0 && (
+    <Tabs defaultValue="bulk" className="space-y-4">
+      <TabsList className="grid w-full max-w-lg grid-cols-3">
+        <TabsTrigger value="bulk" className="flex items-center gap-2">
+          <Layers className="h-4 w-4" />
+          Bulk
+          {bulkOrders.length > 0 && (
             <Badge variant="secondary" className="ml-1">
-              {activeOrders.length}
+              {bulkOrders.length}
+            </Badge>
+          )}
+        </TabsTrigger>
+        <TabsTrigger value="samples" className="flex items-center gap-2">
+          <FlaskConical className="h-4 w-4" />
+          Samples
+          {sampleOrders.length > 0 && (
+            <Badge variant="secondary" className="ml-1">
+              {sampleOrders.length}
             </Badge>
           )}
         </TabsTrigger>
@@ -42,18 +55,33 @@ export function OrderMonthView({ orders, onOrderUpdated }: OrderMonthViewProps) 
         </TabsTrigger>
       </TabsList>
 
-      <TabsContent value="production" className="space-y-4">
-        {activeOrders.length === 0 ? (
+      <TabsContent value="bulk" className="space-y-4">
+        {bulkOrders.length === 0 ? (
           <Card className="p-8">
             <div className="flex flex-col items-center justify-center text-center">
-              <Package className="h-12 w-12 text-muted-foreground/50" />
+              <Layers className="h-12 w-12 text-muted-foreground/50" />
               <p className="mt-4 text-muted-foreground">
-                No active orders in production for this month
+                No active bulk orders for this month
               </p>
             </div>
           </Card>
         ) : (
-          <OrderKanban orders={activeOrders} onOrderUpdated={onOrderUpdated} />
+          <OrderKanban orders={bulkOrders} onOrderUpdated={onOrderUpdated} />
+        )}
+      </TabsContent>
+
+      <TabsContent value="samples" className="space-y-4">
+        {sampleOrders.length === 0 ? (
+          <Card className="p-8">
+            <div className="flex flex-col items-center justify-center text-center">
+              <FlaskConical className="h-12 w-12 text-muted-foreground/50" />
+              <p className="mt-4 text-muted-foreground">
+                No active sample orders for this month
+              </p>
+            </div>
+          </Card>
+        ) : (
+          <OrderKanban orders={sampleOrders} onOrderUpdated={onOrderUpdated} />
         )}
       </TabsContent>
 

@@ -93,6 +93,10 @@ export default function Calculator() {
   // Additional Costs (TRY)
   const [patternCostPerPiece, setPatternCostPerPiece] = useState(0);
   const [patternSetupCost, setPatternSetupCost] = useState(0);
+  const [transportationCostPerPiece, setTransportationCostPerPiece] = useState(0);
+  const [transportationSetupCost, setTransportationSetupCost] = useState(0);
+  const [shippingCostPerPiece, setShippingCostPerPiece] = useState(0);
+  const [shippingSetupCost, setShippingSetupCost] = useState(0);
 
   // Optional Extras
   const [embroidery, setEmbroidery] = useState<OptionalExtra>({ enabled: false, cost: 0 });
@@ -136,6 +140,8 @@ export default function Calculator() {
 
     // Setup cost per piece
     const setupPerPiece = patternSetupCost / qty;
+    const transportationSetupPerPiece = transportationSetupCost / qty;
+    const shippingSetupPerPiece = shippingSetupCost / qty;
 
     // Extras per piece
     const extrasPerPiece =
@@ -152,6 +158,10 @@ export default function Calculator() {
       accessoriesPerPiece +
       patternCostPerPiece +
       setupPerPiece +
+      transportationCostPerPiece +
+      transportationSetupPerPiece +
+      shippingCostPerPiece +
+      shippingSetupPerPiece +
       extrasPerPiece;
 
     // Profit in TRY
@@ -174,6 +184,10 @@ export default function Calculator() {
       accessoriesPerPiece,
       patternCostPerPiece,
       setupPerPiece,
+      transportationCostPerPiece,
+      transportationSetupPerPiece,
+      shippingCostPerPiece,
+      shippingSetupPerPiece,
       extrasPerPiece,
       totalCostTRY,
       profitInTRY,
@@ -187,6 +201,10 @@ export default function Calculator() {
     accessories,
     patternCostPerPiece,
     patternSetupCost,
+    transportationCostPerPiece,
+    transportationSetupCost,
+    shippingCostPerPiece,
+    shippingSetupCost,
     embroidery,
     printing,
     digitalPrinting,
@@ -305,6 +323,22 @@ export default function Calculator() {
           <div class="row"><label>Pattern per Piece</label><value>${formatCurrency(calculations.patternCostPerPiece)}</value></div>
           <div class="row"><label>Setup Cost (per piece)</label><value>${formatCurrency(calculations.setupPerPiece)}</value></div>
         </div>
+
+        ${(calculations.transportationCostPerPiece > 0 || calculations.transportationSetupPerPiece > 0) ? `
+        <div class="section">
+          <h2>Transportation</h2>
+          <div class="row"><label>Transportation per Piece</label><value>${formatCurrency(calculations.transportationCostPerPiece)}</value></div>
+          <div class="row"><label>Setup Cost (per piece)</label><value>${formatCurrency(calculations.transportationSetupPerPiece)}</value></div>
+        </div>
+        ` : ''}
+
+        ${(calculations.shippingCostPerPiece > 0 || calculations.shippingSetupPerPiece > 0) ? `
+        <div class="section">
+          <h2>Shipping</h2>
+          <div class="row"><label>Shipping per Piece</label><value>${formatCurrency(calculations.shippingCostPerPiece)}</value></div>
+          <div class="row"><label>Setup Cost (per piece)</label><value>${formatCurrency(calculations.shippingSetupPerPiece)}</value></div>
+        </div>
+        ` : ''}
         
         ${calculations.extrasPerPiece > 0 ? `
         <div class="section">
@@ -555,6 +589,72 @@ export default function Calculator() {
                 </CardContent>
               </Card>
 
+              {/* Transportation */}
+              <Card className="bg-card border-border shadow-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-foreground">Transportation (TRY)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Transportation Cost per Piece</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={transportationCostPerPiece || ""}
+                        onChange={(e) => setTransportationCostPerPiece(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Transportation Setup Cost (one-time)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={transportationSetupCost || ""}
+                        onChange={(e) => setTransportationSetupCost(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Shipping */}
+              <Card className="bg-card border-border shadow-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg font-semibold text-foreground">Shipping (TRY)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Shipping Cost per Piece</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={shippingCostPerPiece || ""}
+                        onChange={(e) => setShippingCostPerPiece(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="text-muted-foreground">Shipping Setup Cost (one-time)</Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        value={shippingSetupCost || ""}
+                        onChange={(e) => setShippingSetupCost(Number(e.target.value))}
+                        placeholder="0.00"
+                        className="border-border text-foreground placeholder:text-muted-foreground"
+                      />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* Optional Extras */}
               <Card className="bg-card border-border shadow-sm">
                 <CardHeader className="pb-4">
@@ -659,6 +759,18 @@ export default function Calculator() {
                       <span className="text-muted-foreground">Setup Cost (per piece)</span>
                       <span className="font-medium text-foreground">{formatCurrency(calculations.setupPerPiece)}</span>
                     </div>
+                    {(calculations.transportationCostPerPiece > 0 || calculations.transportationSetupPerPiece > 0) && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Transportation</span>
+                        <span className="font-medium text-foreground">{formatCurrency(calculations.transportationCostPerPiece + calculations.transportationSetupPerPiece)}</span>
+                      </div>
+                    )}
+                    {(calculations.shippingCostPerPiece > 0 || calculations.shippingSetupPerPiece > 0) && (
+                      <div className="flex justify-between text-sm">
+                        <span className="text-muted-foreground">Shipping</span>
+                        <span className="font-medium text-foreground">{formatCurrency(calculations.shippingCostPerPiece + calculations.shippingSetupPerPiece)}</span>
+                      </div>
+                    )}
                     {calculations.extrasPerPiece > 0 && (
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Extras Cost</span>
