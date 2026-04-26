@@ -228,11 +228,45 @@ export default function OrderDetail() {
           has_embroidery: order.has_embroidery,
           has_wash_house: order.has_wash_house,
           created_by: user?.id,
-        })
+          ...(((order as any).sample_details !== undefined) && { sample_details: (order as any).sample_details }),
+          ...(((order as any).size_breakdown !== undefined) && { size_breakdown: (order as any).size_breakdown }),
+        } as any)
         .select('id')
         .single();
 
       if (error) throw error;
+
+      // Clone the to-do list (reset status to pending so the copy starts fresh)
+      const { data: existingTasks, error: tasksFetchError } = await supabase
+        .from('order_tasks')
+        .select('title, description, due_date, sort_order')
+        .eq('order_id', order.id)
+        .order('sort_order', { ascending: true });
+
+      if (tasksFetchError) {
+        console.error('Failed to fetch tasks for cloning:', tasksFetchError);
+      } else if (existingTasks && existingTasks.length > 0) {
+        const tasksToInsert = existingTasks.map((t) => ({
+          order_id: newOrder.id,
+          title: t.title,
+          description: t.description,
+          due_date: t.due_date,
+          sort_order: t.sort_order,
+          status: 'pending' as const,
+          created_by: user?.id,
+        }));
+        const { error: tasksInsertError } = await supabase
+          .from('order_tasks')
+          .insert(tasksToInsert);
+        if (tasksInsertError) {
+          console.error('Failed to clone tasks:', tasksInsertError);
+          toast({
+            title: 'Tasks not copied',
+            description: 'Order was duplicated, but the to-do list could not be copied.',
+            variant: 'destructive',
+          });
+        }
+      }
 
       toast({ title: 'Order Duplicated', description: 'A copy of this order has been created.' });
       navigate(`/orders/${newOrder.id}`);

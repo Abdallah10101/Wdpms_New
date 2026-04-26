@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { FileText, Upload, X, Download, Loader2 } from 'lucide-react';
 
@@ -21,6 +22,7 @@ interface OrderInvoicesProps {
 
 export function OrderInvoices({ orderId }: OrderInvoicesProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [invoices, setInvoices] = useState<OrderFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [uploading, setUploading] = useState<{ [key: string]: boolean }>({
@@ -82,7 +84,10 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
 
       const { error: uploadError } = await supabase.storage
         .from('order-files')
-        .upload(filePath, file);
+        .upload(filePath, file, {
+          contentType: file.type || 'application/octet-stream',
+          upsert: false,
+        });
 
       if (uploadError) throw uploadError;
 
@@ -95,9 +100,14 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
         file_size: file.size,
         category: slot,
         is_client_visible: true,
+        uploaded_by: user?.id ?? null,
       });
 
-      if (dbError) throw dbError;
+      if (dbError) {
+        // Roll back the storage upload so we don't leave an orphan
+        await supabase.storage.from('order-files').remove([filePath]);
+        throw dbError;
+      }
 
       toast({
         title: 'Invoice uploaded',
@@ -105,11 +115,11 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
       });
 
       fetchInvoices();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading invoice:', error);
       toast({
         title: 'Upload failed',
-        description: 'Failed to upload invoice. Please try again.',
+        description: error?.message || 'Failed to upload invoice. Please try again.',
         variant: 'destructive',
       });
     } finally {

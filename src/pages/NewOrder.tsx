@@ -22,6 +22,9 @@ import { PRIORITY_CONFIG, type Client, type OrderPriority } from '@/lib/types';
 
 type OrderType = 'sample' | 'bulk';
 
+const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
+type SizeKey = typeof SIZE_OPTIONS[number];
+
 const ACCESSORY_OPTIONS = [
   { key: 'neck_labels', label: 'Neck Labels', icon: Tag },
   { key: 'washing_labels', label: 'Washing Labels', icon: Shirt },
@@ -74,6 +77,15 @@ export default function NewOrder() {
   });
   const [accessories, setAccessories] = useState<Record<AccessoryKey, { enabled: boolean; qty: string }>>(
     () => ACCESSORY_OPTIONS.reduce((acc, a) => ({ ...acc, [a.key]: { enabled: false, qty: '' } }), {} as Record<AccessoryKey, { enabled: boolean; qty: string }>)
+  );
+
+  const [sizeBreakdown, setSizeBreakdown] = useState<Record<SizeKey, string>>(
+    () => SIZE_OPTIONS.reduce((acc, s) => ({ ...acc, [s]: '' }), {} as Record<SizeKey, string>)
+  );
+
+  const sizeBreakdownTotal = SIZE_OPTIONS.reduce(
+    (sum, s) => sum + (parseInt(sizeBreakdown[s]) || 0),
+    0
   );
 
   useEffect(() => {
@@ -129,6 +141,17 @@ export default function NewOrder() {
           }
         : null;
 
+      // Build size breakdown JSON from non-empty entries
+      const sizeBreakdownPayload = SIZE_OPTIONS.reduce((acc, s) => {
+        const n = parseInt(sizeBreakdown[s]);
+        if (n > 0) acc[s] = n;
+        return acc;
+      }, {} as Record<string, number>);
+      const hasSizeBreakdown = Object.keys(sizeBreakdownPayload).length > 0;
+
+      // If user filled the size breakdown, derive total quantity from it
+      const finalQuantity = hasSizeBreakdown ? sizeBreakdownTotal : formData.quantity;
+
       const { data, error } = await supabase
         .from('orders')
         .insert({
@@ -138,7 +161,7 @@ export default function NewOrder() {
           size: orderType === 'sample' ? (formData.size || null) : null, // Only save size for samples
           fabric: formData.notes || null, // Using fabric column for notes
           supplier: orderType, // Store order type in supplier column
-          quantity: formData.quantity,
+          quantity: finalQuantity,
           delivery_date: formData.delivery_date || null,
           priority: formData.priority,
           created_by: user?.id,
@@ -147,6 +170,7 @@ export default function NewOrder() {
           has_wash_house: formData.has_wash_house,
           current_stage: initialStage,
           sample_details: sampleDetailsPayload,
+          size_breakdown: hasSizeBreakdown ? sizeBreakdownPayload : null,
         } as any)
         .select()
         .single();
@@ -331,15 +355,23 @@ export default function NewOrder() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="quantity">Quantity *</Label>
+                  <Label htmlFor="quantity">
+                    Quantity *
+                    {sizeBreakdownTotal > 0 && (
+                      <span className="ml-2 text-xs font-normal text-muted-foreground">
+                        (auto from sizes: {sizeBreakdownTotal})
+                      </span>
+                    )}
+                  </Label>
                   <Input
                     id="quantity"
                     type="number"
                     min="1"
-                    value={formData.quantity}
+                    value={sizeBreakdownTotal > 0 ? sizeBreakdownTotal : formData.quantity}
                     onChange={(e) =>
                       setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })
                     }
+                    disabled={sizeBreakdownTotal > 0}
                     required
                   />
                 </div>
@@ -375,6 +407,38 @@ export default function NewOrder() {
                       setFormData({ ...formData, delivery_date: e.target.value })
                     }
                   />
+                </div>
+
+                {/* Size Breakdown */}
+                <div className="space-y-3 sm:col-span-2 pt-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Sizes</Label>
+                    {sizeBreakdownTotal > 0 && (
+                      <span className="text-xs text-muted-foreground">
+                        Total: <span className="font-semibold text-foreground">{sizeBreakdownTotal}</span>
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Enter how many pieces per size. Leave empty if not used. The total will be saved as the order quantity.
+                  </p>
+                  <div className="grid gap-3 grid-cols-3 sm:grid-cols-6">
+                    {SIZE_OPTIONS.map((s) => (
+                      <div key={s} className="space-y-1">
+                        <Label htmlFor={`size_${s}`} className="text-xs">{s}</Label>
+                        <Input
+                          id={`size_${s}`}
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          value={sizeBreakdown[s]}
+                          onChange={(e) =>
+                            setSizeBreakdown({ ...sizeBreakdown, [s]: e.target.value })
+                          }
+                        />
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Process Types / Design Types */}

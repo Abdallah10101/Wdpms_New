@@ -143,10 +143,16 @@ export default function Invoices() {
     }
   };
 
+  const getInvoiceTotal = (invoice: Invoice): number => {
+    return invoice.total && invoice.total > 0
+      ? invoice.total
+      : invoice.wholesale_price * invoice.quantity;
+  };
+
   const updateStatus = async (invoiceId: string, newStatus: InvoiceStatus) => {
     try {
       const updates: Record<string, any> = { status: newStatus };
-      
+
       if (newStatus === 'sent' && !invoices.find(i => i.id === invoiceId)?.sent_at) {
         updates.sent_at = new Date().toISOString();
       }
@@ -154,7 +160,7 @@ export default function Invoices() {
         updates.paid_at = new Date().toISOString();
         const invoice = invoices.find(i => i.id === invoiceId);
         if (invoice) {
-          updates.amount_paid = invoice.wholesale_price * invoice.quantity;
+          updates.amount_paid = getInvoiceTotal(invoice);
         }
       }
 
@@ -185,7 +191,7 @@ export default function Invoices() {
     if (!paymentInvoice || !paymentAmount) return;
     setIsSubmittingPayment(true);
     try {
-      const totalAmount = paymentInvoice.wholesale_price * paymentInvoice.quantity;
+      const totalAmount = getInvoiceTotal(paymentInvoice);
       const paid = parseFloat(paymentAmount);
       if (isNaN(paid) || paid <= 0) {
         toast({ title: 'Invalid Amount', description: 'Please enter a valid payment amount.', variant: 'destructive' });
@@ -240,7 +246,7 @@ export default function Invoices() {
 
       await logActivity('invoice_deleted', invoice.invoice_number, {
         client: invoice.client?.brand_name || invoice.client?.name || '',
-        total: invoice.wholesale_price * invoice.quantity,
+        total: getInvoiceTotal(invoice),
       });
 
       toast({ title: 'Invoice Deleted', description: `Invoice ${invoice.invoice_number} has been deleted.` });
@@ -258,7 +264,7 @@ export default function Invoices() {
       inv.invoice_number,
       inv.client?.brand_name || inv.client?.name || '',
       inv.order?.order_number || '',
-      (inv.wholesale_price * inv.quantity).toString(),
+      getInvoiceTotal(inv).toString(),
       STATUS_LABELS[inv.status],
       format(new Date(inv.created_at), 'yyyy-MM-dd'),
     ]);
@@ -456,7 +462,7 @@ export default function Invoices() {
                       </TableCell>
                       <TableCell>
                         <span className="font-semibold">
-                          {formatInvoiceAmount(invoice.wholesale_price * invoice.quantity, invoice.currency || 'EUR')}
+                          {formatInvoiceAmount(getInvoiceTotal(invoice), invoice.currency || 'EUR')}
                         </span>
                       </TableCell>
                       <TableCell>
@@ -583,7 +589,7 @@ export default function Invoices() {
             <DialogTitle>Record Payment</DialogTitle>
             <DialogDescription>
               {paymentInvoice && (
-                <>Invoice {paymentInvoice.invoice_number} — Total: {formatInvoiceAmount(paymentInvoice.wholesale_price * paymentInvoice.quantity, paymentInvoice.currency || 'EUR')}</>
+                <>Invoice {paymentInvoice.invoice_number} — Total: {formatInvoiceAmount(getInvoiceTotal(paymentInvoice), paymentInvoice.currency || 'EUR')}</>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -600,7 +606,7 @@ export default function Invoices() {
               />
               {paymentInvoice && paymentAmount && (
                 <p className="text-xs text-muted-foreground">
-                  {parseFloat(paymentAmount) >= paymentInvoice.wholesale_price * paymentInvoice.quantity
+                  {parseFloat(paymentAmount) >= getInvoiceTotal(paymentInvoice)
                     ? 'Will mark as Paid'
                     : 'Will mark as Partially Paid'}
                 </p>

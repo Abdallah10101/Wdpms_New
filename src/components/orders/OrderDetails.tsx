@@ -289,6 +289,16 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
             <span className="font-medium">{order.size}</span>
           </p>
         )}
+        {(order as any).size_breakdown && Object.keys((order as any).size_breakdown).length > 0 && (
+          <p className="text-sm">
+            <span className="text-muted-foreground">Sizes : </span>
+            <span className="font-medium">
+              {Object.entries((order as any).size_breakdown as Record<string, number>)
+                .map(([s, n]) => `${s}: ${n}`)
+                .join(', ')}
+            </span>
+          </p>
+        )}
         {order.collection && (
           <p className="text-sm">
             <span className="text-muted-foreground">Collection : </span>
