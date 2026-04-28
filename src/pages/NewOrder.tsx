@@ -156,28 +156,56 @@ export default function NewOrder() {
       // If user filled the size breakdown, derive total quantity from it
       const finalQuantity = hasSizeBreakdown ? sizeBreakdownTotal : formData.quantity;
 
-      const { data, error } = await supabase
+      // Base payload — guaranteed to have columns that already exist on the table.
+      const basePayload: Record<string, any> = {
+        product_name: formData.product_name,
+        client_id: formData.client_id,
+        collection: formData.collection || null,
+        size: orderType === 'sample' ? (formData.size || null) : null, // Only save size for samples
+        fabric: formData.notes || null, // Using fabric column for notes
+        supplier: orderType, // Store order type in supplier column
+        quantity: finalQuantity,
+        delivery_date: formData.delivery_date || null,
+        priority: formData.priority,
+        created_by: user?.id,
+        has_printing: formData.has_printing,
+        has_embroidery: formData.has_embroidery,
+        has_wash_house: formData.has_wash_house,
+        current_stage: initialStage,
+        sample_details: sampleDetailsPayload,
+      };
+      // Only include size_breakdown when the user actually filled it in. This
+      // also avoids a PGRST204 ("column not found") error if the DB migration
+      // that adds the column hasn't been deployed yet.
+      if (hasSizeBreakdown) {
+        basePayload.size_breakdown = sizeBreakdownPayload;
+      }
+
+      let { data, error } = await supabase
         .from('orders')
-        .insert({
-          product_name: formData.product_name,
-          client_id: formData.client_id,
-          collection: formData.collection || null,
-          size: orderType === 'sample' ? (formData.size || null) : null, // Only save size for samples
-          fabric: formData.notes || null, // Using fabric column for notes
-          supplier: orderType, // Store order type in supplier column
-          quantity: finalQuantity,
-          delivery_date: formData.delivery_date || null,
-          priority: formData.priority,
-          created_by: user?.id,
-          has_printing: formData.has_printing,
-          has_embroidery: formData.has_embroidery,
-          has_wash_house: formData.has_wash_house,
-          current_stage: initialStage,
-          sample_details: sampleDetailsPayload,
-          size_breakdown: hasSizeBreakdown ? sizeBreakdownPayload : null,
-        } as any)
+        .insert(basePayload as any)
         .select()
         .single();
+
+      // If the size_breakdown column doesn't exist yet (migration pending),
+      // retry without it so order creation still works — but warn the user
+      // that the size breakdown wasn't saved.
+      if (error && (error as any).code === 'PGRST204' && hasSizeBreakdown) {
+        const { size_breakdown: _omit, ...payloadWithoutSizes } = basePayload;
+        const retry = await supabase
+          .from('orders')
+          .insert(payloadWithoutSizes as any)
+          .select()
+          .single();
+        data = retry.data;
+        error = retry.error;
+        if (!error) {
+          toast({
+            title: 'Order saved without size breakdown',
+            description: 'The size breakdown column is not deployed yet — ask an admin to run the latest Supabase migration.',
+          });
+        }
+      }
 
       if (error) throw error;
 

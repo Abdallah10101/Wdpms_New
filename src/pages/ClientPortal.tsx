@@ -32,6 +32,29 @@ import {
 import { format, formatDistanceToNow } from 'date-fns';
 import { PRODUCTION_STAGES, getClientVisibleStagesForOrder, getClientStageProgressForOrder, normalizeStage, type Order, type OrderNote } from '@/lib/types';
 
+// Use the stored `invoice.total` (correct since the new multi-line invoice flow)
+// and only fall back to wholesale_price * quantity for legacy invoices that
+// pre-date the `total` column.
+const getInvoiceTotal = (inv: Invoice): number => {
+  return inv.total && inv.total > 0
+    ? inv.total
+    : inv.wholesale_price * inv.quantity;
+};
+
+const formatInvoiceAmount = (amount: number, currency: string | null | undefined): string => {
+  const cur = (currency || 'EUR').toUpperCase();
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: cur,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${cur} ${amount.toFixed(2)}`;
+  }
+};
+
 const STAGE_SHORT_LABELS: Record<string, string> = {
   cutting: 'Cutting',
   printing: 'Printing',
@@ -633,7 +656,7 @@ export default function ClientPortal() {
                           <p className="text-xs text-muted-foreground mt-0.5">{invoice.order_name}</p>
                         </div>
                         <span className="text-sm font-semibold shrink-0">
-                          €{(invoice.wholesale_price * invoice.quantity).toLocaleString()}
+                          {formatInvoiceAmount(getInvoiceTotal(invoice), invoice.currency)}
                         </span>
                       </div>
                     ))}
@@ -1000,7 +1023,7 @@ export default function ClientPortal() {
                           </p>
                           <div className="mt-2 flex items-center justify-between">
                             <span className="text-sm font-semibold">
-                              ₺{(invoice.wholesale_price * invoice.quantity).toLocaleString()}
+                              {formatInvoiceAmount(getInvoiceTotal(invoice), invoice.currency)}
                             </span>
                             <Button variant="ghost" size="sm">
                               <Eye className="h-4 w-4 mr-1" />

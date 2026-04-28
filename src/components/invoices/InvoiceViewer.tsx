@@ -142,10 +142,25 @@ export function InvoiceViewer({
     }
   };
   
-  // Calculate totals from items
-  const subtotal = items.length > 0 
+  // Calculate totals from items.
+  // Fallback order when items haven't loaded:
+  //   1. invoice.total (set by the new multi-line invoice flow)
+  //   2. invoice.subtotal (also set by the new flow)
+  //   3. wholesale_price * quantity (legacy invoices that stored a per-piece price)
+  const subtotal = items.length > 0
     ? items.reduce((sum, item) => sum + item.amount, 0)
-    : invoice.subtotal || (invoice.wholesale_price * invoice.quantity);
+    : (invoice.total && invoice.total > 0
+        ? invoice.total
+        : invoice.subtotal && invoice.subtotal > 0
+          ? invoice.subtotal
+          : invoice.wholesale_price * invoice.quantity);
+
+  // For legacy single-row fallback (no items), compute a sensible unit price.
+  // Prefer dividing the stored total by the stored quantity so the row math
+  // adds up; only fall back to wholesale_price for very old invoices.
+  const fallbackUnitPrice = invoice.quantity > 0 && subtotal > 0
+    ? subtotal / invoice.quantity
+    : invoice.wholesale_price;
 
   const handlePrint = () => {
     const printWindow = window.open('', '_blank');
@@ -178,8 +193,8 @@ export function InvoiceViewer({
       : `<tr>
           <td style="font-weight: 500;">${invoice.quantity}</td>
           <td style="font-weight: 600; color: #1c1917;">${orderName}</td>
-          <td style="text-align: right;">${formatAmount(invoice.wholesale_price)}</td>
-          <td style="text-align: right; font-weight: 600;">${formatAmount(invoice.wholesale_price * invoice.quantity)}</td>
+          <td style="text-align: right;">${formatAmount(fallbackUnitPrice)}</td>
+          <td style="text-align: right; font-weight: 600;">${formatAmount(subtotal)}</td>
         </tr>`;
 
     const termsHtml = invoice.terms_and_conditions 
@@ -501,8 +516,8 @@ export function InvoiceViewer({
                     <tr className="border-t">
                       <td className="p-3">{invoice.quantity}</td>
                       <td className="p-3">{invoice.order_name}</td>
-                      <td className="p-3 text-right">{formatAmount(invoice.wholesale_price)}</td>
-                      <td className="p-3 text-right font-medium">{formatAmount(invoice.wholesale_price * invoice.quantity)}</td>
+                      <td className="p-3 text-right">{formatAmount(fallbackUnitPrice)}</td>
+                      <td className="p-3 text-right font-medium">{formatAmount(subtotal)}</td>
                     </tr>
                   )}
                 </tbody>
