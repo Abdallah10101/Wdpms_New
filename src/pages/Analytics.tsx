@@ -22,6 +22,7 @@ export default function Analytics() {
 
   const [ordersByStage, setOrdersByStage] = useState<{ stage: string; count: number; color: string }[]>([]);
   const [revenueByMonth, setRevenueByMonth] = useState<{ month: string; revenue: number }[]>([]);
+  const [collectedRevenue, setCollectedRevenue] = useState<number>(0);
   const [topClients, setTopClients] = useState<{ name: string; orders: number }[]>([]);
   const [leadConversion, setLeadConversion] = useState<{ name: string; value: number }[]>([]);
   const [onTimeRate, setOnTimeRate] = useState<number>(0);
@@ -110,10 +111,23 @@ export default function Analytics() {
         setTopClients(sortedClients);
       }
 
-      // Revenue by month (last 6 months) — convert each invoice's amount
-      // from its own currency back to TRY (the chart's base) before summing,
-      // and prefer the stored `total` over the legacy wholesale_price * quantity.
+      // Revenue by month (last 6 months). Counts every invoice issued in the
+      // month, regardless of payment status — drafts included — so the chart
+      // shows total billed activity, not just collected cash.
+      // Each invoice's stored `total` is preferred over the legacy
+      // wholesale_price * quantity, and amounts are converted from the
+      // invoice's own currency to TRY (the chart's base) before summing.
       const months = Array.from({ length: 6 }, (_, i) => subMonths(new Date(), i)).reverse();
+      const convertToTRY = (amount: number, currency: string): number => {
+        const cur = (currency || 'EUR').toUpperCase();
+        if (cur === 'TRY') return amount;
+        const tryRate = ratesFromEUR['TRY'];
+        if (!tryRate) return amount; // rates not loaded yet — degrade gracefully
+        if (cur === 'EUR') return amount * tryRate;
+        const fromRate = ratesFromEUR[cur];
+        if (!fromRate) return amount;
+        return (amount / fromRate) * tryRate;
+      };
       const monthlyRevenue = await Promise.all(months.map(async (month) => {
         const start = startOfMonth(month).toISOString();
         const end = endOfMonth(month).toISOString();
@@ -121,30 +135,34 @@ export default function Analytics() {
           .from('invoices')
           .select('wholesale_price, quantity, total, currency, amount_paid, status')
           .gte('created_at', start)
-          .lte('created_at', end)
-          .in('status', ['paid', 'partially_paid']);
+          .lte('created_at', end);
         const total = (invoices || []).reduce((sum, inv: any) => {
-          // For partially paid, count only what was actually paid; for paid, count the full total.
           const invoiceTotal = inv.total && inv.total > 0
             ? Number(inv.total)
             : Number(inv.wholesale_price) * Number(inv.quantity);
-          const counted = inv.status === 'partially_paid'
-            ? Number(inv.amount_paid || 0)
-            : invoiceTotal;
-          // Convert from invoice currency to TRY (base for the chart).
-          const cur = (inv.currency || 'EUR').toUpperCase();
-          if (cur === 'TRY') return sum + counted;
-          const tryRate = ratesFromEUR['TRY'];
-          if (!tryRate) return sum + counted; // rates not loaded yet — best-effort
-          if (cur === 'EUR') return sum + counted * tryRate;
-          const fromRate = ratesFromEUR[cur];
-          if (!fromRate) return sum + counted;
-          // counted is in `cur`; convert to EUR then to TRY.
-          return sum + (counted / fromRate) * tryRate;
+          return sum + convertToTRY(invoiceTotal, inv.currency);
         }, 0);
         return { month: format(month, 'MMM'), revenue: total };
       }));
       setRevenueByMonth(monthlyRevenue);
+
+      // Collected revenue (paid + partially_paid only) for the secondary KPI.
+      const sixMonthsAgo = subMonths(new Date(), 6).toISOString();
+      const { data: collectedInvoices } = await supabase
+        .from('invoices')
+        .select('total, wholesale_price, quantity, currency, amount_paid, status')
+        .gte('created_at', sixMonthsAgo)
+        .in('status', ['paid', 'partially_paid']);
+      const collected = (collectedInvoices || []).reduce((sum, inv: any) => {
+        const invoiceTotal = inv.total && inv.total > 0
+          ? Number(inv.total)
+          : Number(inv.wholesale_price) * Number(inv.quantity);
+        const counted = inv.status === 'partially_paid'
+          ? Number(inv.amount_paid || 0)
+          : invoiceTotal;
+        return sum + convertToTRY(counted, inv.currency);
+      }, 0);
+      setCollectedRevenue(collected);
 
       // Lead conversion funnel
       const { data: leads } = await (supabase.from('leads' as any) as any).select('status');
@@ -201,7 +219,7 @@ export default function Analytics() {
         ) : (
           <>
             {/* KPI row */}
-            <div className="grid gap-4 md:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-sm font-medium text-muted-foreground">On-Time Delivery Rate</CardTitle>
@@ -213,13 +231,24 @@ export default function Analytics() {
               </Card>
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue (6mo)</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Invoiced (6mo)</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">
                     {getCurrencySymbol(analyticsCurrency)}{Math.round(convertFromTRY(revenueByMonth.reduce((s, m) => s + m.revenue, 0))).toLocaleString()}
                   </div>
-                  <p className="text-xs text-muted-foreground mt-1">From paid invoices ({analyticsCurrency})</p>
+                  <p className="text-xs text-muted-foreground mt-1">All invoices, every status ({analyticsCurrency})</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Collected (6mo)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-primary">
+                    {getCurrencySymbol(analyticsCurrency)}{Math.round(convertFromTRY(collectedRevenue)).toLocaleString()}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">From paid / partially paid ({analyticsCurrency})</p>
                 </CardContent>
               </Card>
               <Card>
@@ -241,7 +270,7 @@ export default function Analytics() {
               {/* Revenue over time */}
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">Revenue (Last 6 Months) — {analyticsCurrency}</CardTitle>
+                  <CardTitle className="text-base">Invoiced (Last 6 Months) — {analyticsCurrency}</CardTitle>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={220}>
