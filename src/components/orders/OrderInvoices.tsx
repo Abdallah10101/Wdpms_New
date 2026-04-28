@@ -3,7 +3,22 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { FileText, Upload, X, Download, Loader2 } from 'lucide-react';
+import { FileText, Upload, X, Download, Loader2, EyeOff } from 'lucide-react';
+
+type InvoiceSlot = 'invoice_1' | 'invoice_2' | 'invoice_profit';
+
+const SLOT_LABEL: Record<InvoiceSlot, string> = {
+  invoice_1: 'Cost Invoice',
+  invoice_2: 'Client Invoice',
+  invoice_profit: 'Profit Invoice',
+};
+
+// Profit invoice is for internal use only — never expose to clients.
+const SLOT_CLIENT_VISIBLE: Record<InvoiceSlot, boolean> = {
+  invoice_1: true,
+  invoice_2: true,
+  invoice_profit: false,
+};
 
 interface OrderFile {
   id: string;
@@ -25,9 +40,10 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
   const { user } = useAuth();
   const [invoices, setInvoices] = useState<OrderFile[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [uploading, setUploading] = useState<{ [key: string]: boolean }>({
+  const [uploading, setUploading] = useState<Record<InvoiceSlot, boolean>>({
     invoice_1: false,
     invoice_2: false,
+    invoice_profit: false,
   });
 
   useEffect(() => {
@@ -40,7 +56,7 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
         .from('order_files')
         .select('*')
         .eq('order_id', orderId)
-        .in('category', ['invoice_1', 'invoice_2'])
+        .in('category', ['invoice_1', 'invoice_2', 'invoice_profit'])
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -52,12 +68,12 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
     }
   };
 
-  const getInvoice = (slot: 'invoice_1' | 'invoice_2') => {
+  const getInvoice = (slot: InvoiceSlot) => {
     return invoices.find((inv) => inv.category === slot);
   };
 
   const handleUpload = async (
-    slot: 'invoice_1' | 'invoice_2',
+    slot: InvoiceSlot,
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const file = event.target.files?.[0];
@@ -99,7 +115,7 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
         file_type: file.type,
         file_size: file.size,
         category: slot,
-        is_client_visible: true,
+        is_client_visible: SLOT_CLIENT_VISIBLE[slot],
         uploaded_by: user?.id ?? null,
       });
 
@@ -111,7 +127,7 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
 
       toast({
         title: 'Invoice uploaded',
-        description: `${slot === 'invoice_1' ? 'Cost Invoice' : 'Client Invoice'} has been uploaded successfully.`,
+        description: `${SLOT_LABEL[slot]} has been uploaded successfully.`,
       });
 
       fetchInvoices();
@@ -129,7 +145,7 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
     }
   };
 
-  const handleDelete = async (slot: 'invoice_1' | 'invoice_2') => {
+  const handleDelete = async (slot: InvoiceSlot) => {
     const invoice = getInvoice(slot);
     if (!invoice) return;
 
@@ -194,7 +210,7 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  const renderSlot = (slot: 'invoice_1' | 'invoice_2', label: string) => {
+  const renderSlot = (slot: InvoiceSlot, label: string) => {
     const invoice = getInvoice(slot);
     const isUploading = uploading[slot];
 
@@ -269,7 +285,7 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
         <FileText className="h-5 w-5" />
         Invoices
       </h3>
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-3">
         <div className="space-y-2">
           <label className="text-sm font-medium text-muted-foreground">Cost Invoice</label>
           {renderSlot('invoice_1', 'Cost Invoice')}
@@ -277,6 +293,14 @@ export function OrderInvoices({ orderId }: OrderInvoicesProps) {
         <div className="space-y-2">
           <label className="text-sm font-medium text-muted-foreground">Client Invoice</label>
           {renderSlot('invoice_2', 'Client Invoice')}
+        </div>
+        <div className="space-y-2">
+          <label className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground">
+            Profit Invoice
+            <EyeOff className="h-3.5 w-3.5" />
+            <span className="text-xs italic">(internal — hidden from clients)</span>
+          </label>
+          {renderSlot('invoice_profit', 'Profit Invoice')}
         </div>
       </div>
     </div>

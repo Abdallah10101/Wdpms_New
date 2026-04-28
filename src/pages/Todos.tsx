@@ -20,6 +20,7 @@ import {
   Package,
   ArrowLeft,
   ChevronRight,
+  X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -82,6 +83,10 @@ export default function Todos() {
   const [todos, setTodos] = useState<TodoRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  // Date filter: 'day' shows only tasks whose due_date matches the picked day;
+  // 'month' shows tasks whose due_date falls in the picked month (YYYY-MM).
+  const [filterMode, setFilterMode] = useState<'day' | 'month'>('day');
+  const [filterDate, setFilterDate] = useState('');
 
   const selectedOrderId = searchParams.get('order');
 
@@ -122,10 +127,21 @@ export default function Todos() {
     }
   };
 
+  // Apply the date filter (if any) to the raw todo list. All downstream
+  // calculations (stats, product groups, task view) operate on this list.
+  const dateFilteredTodos = useMemo(() => {
+    if (!filterDate) return todos;
+    if (filterMode === 'day') {
+      return todos.filter((t) => t.due_date === filterDate);
+    }
+    // month mode: filterDate is YYYY-MM
+    return todos.filter((t) => t.due_date && t.due_date.startsWith(filterDate));
+  }, [todos, filterDate, filterMode]);
+
   // Build product groups (each order = a product)
   const productGroups = useMemo<ProductGroup[]>(() => {
     const map = new Map<string, ProductGroup>();
-    for (const todo of todos) {
+    for (const todo of dateFilteredTodos) {
       if (!todo.order) continue;
       const orderId = todo.order.id;
       if (!map.has(orderId)) {
@@ -144,22 +160,22 @@ export default function Todos() {
       map.get(orderId)!.todos.push(todo);
     }
     return Array.from(map.values());
-  }, [todos]);
+  }, [dateFilteredTodos]);
 
   const selectedProduct = useMemo(
     () => productGroups.find((p) => p.orderId === selectedOrderId) || null,
     [productGroups, selectedOrderId]
   );
 
-  // Global stats (level 1)
+  // Global stats (level 1) — reflect the date filter when one is applied.
   const globalStats = useMemo(
     () => ({
-      total: todos.length,
-      overdue: todos.filter((t) => isOverdue(t.due_date, t.status)).length,
-      dueToday: todos.filter((t) => isDueToday(t.due_date, t.status)).length,
-      done: todos.filter((t) => t.status === 'done').length,
+      total: dateFilteredTodos.length,
+      overdue: dateFilteredTodos.filter((t) => isOverdue(t.due_date, t.status)).length,
+      dueToday: dateFilteredTodos.filter((t) => isDueToday(t.due_date, t.status)).length,
+      done: dateFilteredTodos.filter((t) => t.status === 'done').length,
     }),
-    [todos]
+    [dateFilteredTodos]
   );
 
   // Product-specific stats (level 2)
@@ -471,15 +487,64 @@ export default function Todos() {
           </Card>
         </div>
 
-        {/* Search */}
-        <div className="relative max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search products or clients..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
-          />
+        {/* Search + date filter */}
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 min-w-[220px] max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search products or clients..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <select
+              value={filterMode}
+              onChange={(e) => {
+                const next = e.target.value as 'day' | 'month';
+                setFilterMode(next);
+                setFilterDate('');
+              }}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+            >
+              <option value="day">Day</option>
+              <option value="month">Month</option>
+            </select>
+            <Input
+              type={filterMode === 'day' ? 'date' : 'month'}
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="h-9 w-44"
+            />
+            {filterDate && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setFilterDate('')}
+                className="h-9 px-2"
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                setFilterMode('day');
+                setFilterDate(`${yyyy}-${mm}-${dd}`);
+              }}
+              className="h-9"
+            >
+              Today
+            </Button>
+          </div>
         </div>
 
         {/* Kanban columns: one per client, cards are products */}

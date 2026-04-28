@@ -36,10 +36,17 @@ export default function Analytics() {
 
   useEffect(() => {
     if (user && role === 'admin') {
-      fetchAnalyticsData();
       fetchRates();
     }
   }, [user, role]);
+
+  // Re-fetch analytics data once rates are loaded so monthly revenue can
+  // convert from each invoice's currency to TRY (the chart's base).
+  useEffect(() => {
+    if (user && role === 'admin') {
+      fetchAnalyticsData();
+    }
+  }, [user, role, ratesFromEUR]);
 
   const fetchRates = async () => {
     setRateLoading(true);
@@ -103,18 +110,38 @@ export default function Analytics() {
         setTopClients(sortedClients);
       }
 
-      // Revenue by month (last 6 months)
+      // Revenue by month (last 6 months) — convert each invoice's amount
+      // from its own currency back to TRY (the chart's base) before summing,
+      // and prefer the stored `total` over the legacy wholesale_price * quantity.
       const months = Array.from({ length: 6 }, (_, i) => subMonths(new Date(), i)).reverse();
       const monthlyRevenue = await Promise.all(months.map(async (month) => {
         const start = startOfMonth(month).toISOString();
         const end = endOfMonth(month).toISOString();
         const { data: invoices } = await supabase
           .from('invoices')
-          .select('wholesale_price, quantity')
+          .select('wholesale_price, quantity, total, currency, amount_paid, status')
           .gte('created_at', start)
           .lte('created_at', end)
           .in('status', ['paid', 'partially_paid']);
-        const total = (invoices || []).reduce((sum, inv) => sum + inv.wholesale_price * inv.quantity, 0);
+        const total = (invoices || []).reduce((sum, inv: any) => {
+          // For partially paid, count only what was actually paid; for paid, count the full total.
+          const invoiceTotal = inv.total && inv.total > 0
+            ? Number(inv.total)
+            : Number(inv.wholesale_price) * Number(inv.quantity);
+          const counted = inv.status === 'partially_paid'
+            ? Number(inv.amount_paid || 0)
+            : invoiceTotal;
+          // Convert from invoice currency to TRY (base for the chart).
+          const cur = (inv.currency || 'EUR').toUpperCase();
+          if (cur === 'TRY') return sum + counted;
+          const tryRate = ratesFromEUR['TRY'];
+          if (!tryRate) return sum + counted; // rates not loaded yet — best-effort
+          if (cur === 'EUR') return sum + counted * tryRate;
+          const fromRate = ratesFromEUR[cur];
+          if (!fromRate) return sum + counted;
+          // counted is in `cur`; convert to EUR then to TRY.
+          return sum + (counted / fromRate) * tryRate;
+        }, 0);
         return { month: format(month, 'MMM'), revenue: total };
       }));
       setRevenueByMonth(monthlyRevenue);

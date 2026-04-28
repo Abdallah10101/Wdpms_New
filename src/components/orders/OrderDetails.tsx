@@ -321,6 +321,54 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
         </div>
       )}
 
+      {/* Sample / Production Details — captured at order creation */}
+      {(() => {
+        const sd = (order as any).sample_details as Record<string, any> | null;
+        if (!sd) return null;
+        const rows: Array<[string, string]> = [];
+        if (sd.pattern_name) rows.push(['Pattern Name', String(sd.pattern_name)]);
+        if (sd.pattern_maker) rows.push(['Pattern Maker', String(sd.pattern_maker)]);
+        if (sd.references_number) rows.push(['References Number', String(sd.references_number)]);
+        if (sd.fabric_kgs != null && sd.fabric_kgs !== '') rows.push(['Amount of Fabric (KGS)', String(sd.fabric_kgs)]);
+        if (sd.gsm != null && sd.gsm !== '') rows.push(['GSM', String(sd.gsm)]);
+        if (sd.cut_and_sew_supplier) rows.push(['Cut & Sew Supplier', String(sd.cut_and_sew_supplier)]);
+        if (sd.qc_sign_off) rows.push(['QC Sign Off', String(sd.qc_sign_off)]);
+        const accessories = Array.isArray(sd.accessories)
+          ? sd.accessories.filter((a: any) => a && a.label)
+          : [];
+        if (rows.length === 0 && accessories.length === 0) return null;
+        return (
+          <div className="space-y-2">
+            <h4 className="font-semibold text-sm">
+              {order.supplier === 'sample' ? 'Sample Details' : 'Production Details'} :
+            </h4>
+            {rows.length > 0 && (
+              <div className="space-y-1">
+                {rows.map(([label, value]) => (
+                  <p key={label} className="text-sm">
+                    <span className="text-muted-foreground">{label} : </span>
+                    <span className="font-medium">{value}</span>
+                  </p>
+                ))}
+              </div>
+            )}
+            {accessories.length > 0 && (
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">Accessories :</p>
+                <div className="flex flex-wrap gap-2">
+                  {accessories.map((a: any, i: number) => (
+                    <Badge key={`${a.key || a.label}-${i}`} variant="secondary">
+                      {a.label}
+                      {a.qty ? ` × ${a.qty}` : ''}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {/* Process Types */}
       {(order.has_printing || order.has_embroidery || order.has_wash_house) && (
         <div className="space-y-2">

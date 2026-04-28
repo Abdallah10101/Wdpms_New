@@ -132,7 +132,11 @@ export default function NewOrder() {
         .filter((a) => accessories[a.key].enabled)
         .map((a) => ({ key: a.key, label: a.label, qty: Number(accessories[a.key].qty) || 0 }));
 
-      const sampleDetailsPayload = orderType === 'sample'
+      // Sample details + accessories are now captured for bulk orders as well.
+      const hasAnySampleDetail =
+        Object.values(sampleDetails).some((v) => String(v).trim() !== '') ||
+        selectedAccessories.length > 0;
+      const sampleDetailsPayload = hasAnySampleDetail
         ? {
             ...sampleDetails,
             fabric_kgs: sampleDetails.fabric_kgs ? Number(sampleDetails.fabric_kgs) : null,
@@ -499,11 +503,12 @@ export default function NewOrder() {
                   </div>
                 </div>
 
-                {/* Sample-specific fields */}
-                {orderType === 'sample' && (
-                  <>
+                {/* Production / Sample details — shown for both bulk and sample */}
+                <>
                     <div className="space-y-2 sm:col-span-2 pt-4 border-t">
-                      <h3 className="text-sm font-semibold">Sample Details</h3>
+                      <h3 className="text-sm font-semibold">
+                        {orderType === 'sample' ? 'Sample Details' : 'Production Details'}
+                      </h3>
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="pattern_name">Pattern Name</Label>
@@ -619,7 +624,6 @@ export default function NewOrder() {
                       </div>
                     </div>
                   </>
-                )}
               </div>
 
               {/* Actions */}
