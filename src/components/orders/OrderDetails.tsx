@@ -7,7 +7,22 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Pencil, Save, X, Printer, Sparkles, Waves } from 'lucide-react';
+import {
+  Pencil,
+  Save,
+  X,
+  Printer,
+  Sparkles,
+  Waves,
+  Tag,
+  Shirt,
+  Gift,
+  Package as PackageIcon,
+  Zap,
+  Link2,
+  Key,
+  CircleDot,
+} from 'lucide-react';
 import type { Order } from '@/lib/types';
 
 interface OrderDetailsProps {
@@ -16,10 +31,78 @@ interface OrderDetailsProps {
   onUpdate: () => void;
 }
 
+// Keep these in sync with NewOrder.tsx so creation and editing share the same shape.
+const SIZE_OPTIONS = ['XS', 'S', 'M', 'L', 'XL', 'XXL'] as const;
+type SizeKey = typeof SIZE_OPTIONS[number];
+
+const ACCESSORY_OPTIONS = [
+  { key: 'neck_labels', label: 'Neck Labels', icon: Tag },
+  { key: 'washing_labels', label: 'Washing Labels', icon: Shirt },
+  { key: 'thanks_cards', label: 'Thanks Cards', icon: Gift },
+  { key: 'hang_tags', label: 'Hang Tags', icon: Tag },
+  { key: 'packaging', label: 'Packaging', icon: PackageIcon },
+  { key: 'zippers', label: 'Zippers', icon: Zap },
+  { key: 'rivets', label: 'Rivets', icon: CircleDot },
+  { key: 'laces', label: 'Laces', icon: Link2 },
+  { key: 'adjustables', label: 'Adjustables', icon: Link2 },
+  { key: 'key_chain_holder', label: 'Key Chain Holder', icon: Key },
+  { key: 'buttons', label: 'Buttons', icon: CircleDot },
+] as const;
+
+type AccessoryKey = typeof ACCESSORY_OPTIONS[number]['key'];
+
+const EMPTY_SAMPLE_DETAILS = {
+  pattern_name: '',
+  pattern_maker: '',
+  references_number: '',
+  fabric_kgs: '',
+  gsm: '',
+  cut_and_sew_supplier: '',
+  qc_sign_off: '',
+};
+
 export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Hydrate sample_details from the row, falling back to empty strings so
+  // the inputs stay controlled even on bulk orders that never set them.
+  const hydrateSampleDetails = (o: Order) => {
+    const sd = (o as any).sample_details as Record<string, any> | null;
+    if (!sd) return { ...EMPTY_SAMPLE_DETAILS };
+    return {
+      pattern_name: sd.pattern_name ?? '',
+      pattern_maker: sd.pattern_maker ?? '',
+      references_number: sd.references_number ?? '',
+      fabric_kgs: sd.fabric_kgs == null ? '' : String(sd.fabric_kgs),
+      gsm: sd.gsm == null ? '' : String(sd.gsm),
+      cut_and_sew_supplier: sd.cut_and_sew_supplier ?? '',
+      qc_sign_off: sd.qc_sign_off ?? '',
+    };
+  };
+
+  const hydrateAccessories = (o: Order) => {
+    const sd = (o as any).sample_details as Record<string, any> | null;
+    const stored: Array<{ key?: string; label?: string; qty?: number }> = Array.isArray(sd?.accessories) ? sd!.accessories : [];
+    return ACCESSORY_OPTIONS.reduce((acc, opt) => {
+      const match = stored.find((a) => a.key === opt.key || a.label === opt.label);
+      acc[opt.key] = {
+        enabled: !!match,
+        qty: match?.qty != null ? String(match.qty) : '',
+      };
+      return acc;
+    }, {} as Record<AccessoryKey, { enabled: boolean; qty: string }>);
+  };
+
+  const hydrateSizeBreakdown = (o: Order) => {
+    const sb = (o as any).size_breakdown as Record<string, number> | null;
+    return SIZE_OPTIONS.reduce((acc, s) => {
+      acc[s] = sb && typeof sb[s] === 'number' ? String(sb[s]) : '';
+      return acc;
+    }, {} as Record<SizeKey, string>);
+  };
+
   const [formData, setFormData] = useState({
     product_name: order.product_name || '',
     size: order.size || '',
@@ -33,28 +116,88 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
     has_wash_house: order.has_wash_house || false,
     created_at: order.created_at ? new Date(order.created_at).toISOString().slice(0, 16) : '',
   });
+  const [sampleDetails, setSampleDetails] = useState(() => hydrateSampleDetails(order));
+  const [accessories, setAccessories] = useState(() => hydrateAccessories(order));
+  const [sizeBreakdown, setSizeBreakdown] = useState(() => hydrateSizeBreakdown(order));
+
+  const sizeBreakdownTotal = SIZE_OPTIONS.reduce(
+    (sum, s) => sum + (parseInt(sizeBreakdown[s]) || 0),
+    0,
+  );
 
   const client = order.client as any;
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const { error } = await supabase
+      // Build the sample_details JSON. Only persist a non-null payload when
+      // the user actually filled at least one field, so we don't stomp on a
+      // pre-existing value with an empty object.
+      const selectedAccessories = ACCESSORY_OPTIONS
+        .filter((a) => accessories[a.key].enabled)
+        .map((a) => ({ key: a.key, label: a.label, qty: Number(accessories[a.key].qty) || 0 }));
+      const hasAnySampleDetail =
+        Object.values(sampleDetails).some((v) => String(v).trim() !== '') ||
+        selectedAccessories.length > 0;
+      const sampleDetailsPayload = hasAnySampleDetail
+        ? {
+            ...sampleDetails,
+            fabric_kgs: sampleDetails.fabric_kgs ? Number(sampleDetails.fabric_kgs) : null,
+            gsm: sampleDetails.gsm ? Number(sampleDetails.gsm) : null,
+            accessories: selectedAccessories,
+          }
+        : null;
+
+      // Size breakdown: only include sizes the user actually set (>0).
+      const sizeBreakdownPayload = SIZE_OPTIONS.reduce((acc, s) => {
+        const n = parseInt(sizeBreakdown[s]);
+        if (n > 0) acc[s] = n;
+        return acc;
+      }, {} as Record<string, number>);
+      const hasSizeBreakdown = Object.keys(sizeBreakdownPayload).length > 0;
+
+      // If the user filled the size breakdown, derive total quantity from it
+      // so quantity and breakdown stay consistent.
+      const finalQuantity = hasSizeBreakdown ? sizeBreakdownTotal : formData.quantity;
+
+      const basePayload: Record<string, any> = {
+        product_name: formData.product_name,
+        size: formData.size || null,
+        collection: formData.collection || null,
+        fabric: formData.fabric || null,
+        supplier: formData.supplier || null,
+        quantity: finalQuantity,
+        pieces_sent: formData.pieces_sent,
+        has_printing: formData.has_printing,
+        has_embroidery: formData.has_embroidery,
+        has_wash_house: formData.has_wash_house,
+        created_at: formData.created_at ? new Date(formData.created_at).toISOString() : order.created_at,
+        sample_details: sampleDetailsPayload,
+      };
+      // size_breakdown is conditionally added so we don't 400 if the column
+      // hasn't been deployed yet on this database.
+      basePayload.size_breakdown = hasSizeBreakdown ? sizeBreakdownPayload : null;
+
+      let { error } = await supabase
         .from('orders')
-        .update({
-          product_name: formData.product_name,
-          size: formData.size || null,
-          collection: formData.collection || null,
-          fabric: formData.fabric || null,
-          supplier: formData.supplier || null,
-          quantity: formData.quantity,
-          pieces_sent: formData.pieces_sent,
-          has_printing: formData.has_printing,
-          has_embroidery: formData.has_embroidery,
-          has_wash_house: formData.has_wash_house,
-          created_at: formData.created_at ? new Date(formData.created_at).toISOString() : order.created_at,
-        })
+        .update(basePayload as any)
         .eq('id', order.id);
+
+      // Retry without size_breakdown if the migration is missing.
+      if (error && (error as any).code === 'PGRST204') {
+        const { size_breakdown: _omit, ...payloadWithoutSizes } = basePayload;
+        const retry = await supabase
+          .from('orders')
+          .update(payloadWithoutSizes as any)
+          .eq('id', order.id);
+        error = retry.error;
+        if (!error && hasSizeBreakdown) {
+          toast({
+            title: 'Saved without size breakdown',
+            description: 'The size_breakdown column is not deployed on this database yet — ask an admin to run the latest Supabase migration.',
+          });
+        }
+      }
 
       if (error) throw error;
 
@@ -62,7 +205,7 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
         title: 'Saved',
         description: 'Product details updated successfully.',
       });
-      
+
       setIsEditing(false);
       onUpdate();
     } catch (error) {
@@ -91,6 +234,9 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
       has_wash_house: order.has_wash_house || false,
       created_at: order.created_at ? new Date(order.created_at).toISOString().slice(0, 16) : '',
     });
+    setSampleDetails(hydrateSampleDetails(order));
+    setAccessories(hydrateAccessories(order));
+    setSizeBreakdown(hydrateSizeBreakdown(order));
     setIsEditing(false);
   };
 
@@ -165,13 +311,21 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity</Label>
+              <Label htmlFor="quantity">
+                Quantity
+                {sizeBreakdownTotal > 0 && (
+                  <span className="ml-2 text-xs font-normal text-muted-foreground">
+                    (auto from sizes: {sizeBreakdownTotal})
+                  </span>
+                )}
+              </Label>
               <Input
                 id="quantity"
                 type="number"
                 min={1}
-                value={formData.quantity}
+                value={sizeBreakdownTotal > 0 ? sizeBreakdownTotal : formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+                disabled={sizeBreakdownTotal > 0}
               />
             </div>
             <div className="space-y-2">
@@ -183,6 +337,38 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
                 value={formData.pieces_sent}
                 onChange={(e) => setFormData({ ...formData, pieces_sent: parseInt(e.target.value) || 0 })}
               />
+            </div>
+          </div>
+
+          {/* Size Breakdown */}
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center justify-between">
+              <Label>Sizes</Label>
+              {sizeBreakdownTotal > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  Total: <span className="font-semibold text-foreground">{sizeBreakdownTotal}</span>
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Per-size piece counts. The total replaces the Quantity field above.
+            </p>
+            <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
+              {SIZE_OPTIONS.map((s) => (
+                <div key={s} className="space-y-1">
+                  <Label htmlFor={`edit_size_${s}`} className="text-xs">{s}</Label>
+                  <Input
+                    id={`edit_size_${s}`}
+                    type="number"
+                    min={0}
+                    placeholder="0"
+                    value={sizeBreakdown[s]}
+                    onChange={(e) =>
+                      setSizeBreakdown({ ...sizeBreakdown, [s]: e.target.value })
+                    }
+                  />
+                </div>
+              ))}
             </div>
           </div>
 
@@ -252,6 +438,128 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
                   Wash House
                 </label>
               </div>
+            </div>
+          </div>
+
+          {/* Sample / Production Details */}
+          <div className="space-y-3 pt-2 border-t">
+            <h4 className="text-sm font-semibold">
+              {order.supplier === 'sample' ? 'Sample Details' : 'Production Details'}
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="edit_pattern_name">Pattern Name</Label>
+                <Input
+                  id="edit_pattern_name"
+                  value={sampleDetails.pattern_name}
+                  onChange={(e) => setSampleDetails({ ...sampleDetails, pattern_name: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_pattern_maker">Pattern Maker</Label>
+                <Input
+                  id="edit_pattern_maker"
+                  value={sampleDetails.pattern_maker}
+                  onChange={(e) => setSampleDetails({ ...sampleDetails, pattern_maker: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_references_number">References Number</Label>
+                <Input
+                  id="edit_references_number"
+                  value={sampleDetails.references_number}
+                  onChange={(e) => setSampleDetails({ ...sampleDetails, references_number: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_fabric_kgs">Amount of Fabric (KGS)</Label>
+                <Input
+                  id="edit_fabric_kgs"
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  value={sampleDetails.fabric_kgs}
+                  onChange={(e) => setSampleDetails({ ...sampleDetails, fabric_kgs: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_gsm">GSM</Label>
+                <Input
+                  id="edit_gsm"
+                  type="number"
+                  min={0}
+                  value={sampleDetails.gsm}
+                  onChange={(e) => setSampleDetails({ ...sampleDetails, gsm: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="edit_cut_and_sew_supplier">Cut & Sew Supplier</Label>
+                <Input
+                  id="edit_cut_and_sew_supplier"
+                  value={sampleDetails.cut_and_sew_supplier}
+                  onChange={(e) => setSampleDetails({ ...sampleDetails, cut_and_sew_supplier: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2 sm:col-span-2">
+                <Label htmlFor="edit_qc_sign_off">QC Sign Off</Label>
+                <Input
+                  id="edit_qc_sign_off"
+                  value={sampleDetails.qc_sign_off}
+                  onChange={(e) => setSampleDetails({ ...sampleDetails, qc_sign_off: e.target.value })}
+                  placeholder="Name of QC who signed off"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Accessories */}
+          <div className="space-y-3 pt-2 border-t">
+            <Label>Accessories</Label>
+            <p className="text-xs text-muted-foreground">
+              Toggle the accessories needed and enter quantity for each.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {ACCESSORY_OPTIONS.map(({ key, label, icon: Icon }) => {
+                const entry = accessories[key];
+                return (
+                  <div key={key} className="flex items-center gap-3">
+                    <div className="flex items-center space-x-2 flex-1 min-w-0">
+                      <Checkbox
+                        id={`edit_acc_${key}`}
+                        checked={entry.enabled}
+                        onCheckedChange={(checked) =>
+                          setAccessories({
+                            ...accessories,
+                            [key]: { ...entry, enabled: checked === true },
+                          })
+                        }
+                      />
+                      <label
+                        htmlFor={`edit_acc_${key}`}
+                        className="flex items-center gap-2 text-sm font-medium cursor-pointer truncate"
+                      >
+                        <Icon className="h-4 w-4 text-orange-500" />
+                        {label}
+                      </label>
+                    </div>
+                    {entry.enabled && (
+                      <Input
+                        type="number"
+                        min={0}
+                        placeholder="Qty"
+                        value={entry.qty}
+                        onChange={(e) =>
+                          setAccessories({
+                            ...accessories,
+                            [key]: { ...entry, qty: e.target.value },
+                          })
+                        }
+                        className="w-20 h-8"
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         </div>
