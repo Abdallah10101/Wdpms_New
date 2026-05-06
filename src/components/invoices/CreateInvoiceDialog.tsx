@@ -18,7 +18,8 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { CalendarIcon, Loader2, FileText, Plus, Trash2, Package, TrendingUp, Lock } from 'lucide-react';
+import { openCostInvoiceWindow } from '@/lib/costInvoiceTemplate';
+import { CalendarIcon, Loader2, FileText, Plus, Trash2, Package, TrendingUp, Lock, FileBarChart } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -76,6 +77,12 @@ interface CreateInvoiceDialogProps {
   exchangeRate?: number;
   availableCurrencies?: string[];
   ratesFromEUR?: Record<string, number>;
+  // 'client' (default) saves the invoice and lets the parent open the client
+  // PDF afterwards. 'cost' uses the same picker flow but, on submit, persists
+  // the invoice as a draft AND immediately opens the watermarked Cost Invoice
+  // PDF — no client-facing PDF is shown. This is the "New Cost Report"
+  // entry point, accessible only to admins.
+  mode?: 'client' | 'cost';
 }
 
 const DEFAULT_INCLUSIONS = [
@@ -113,11 +120,13 @@ export function CreateInvoiceDialog({
   exchangeRate: propExchangeRate = 50.43,
   availableCurrencies = ['EUR', 'USD', 'GBP', 'TRY', 'AED', 'SAR', 'JPY', 'CNY'],
   ratesFromEUR = {},
+  mode = 'client',
 }: CreateInvoiceDialogProps) {
   const { toast } = useToast();
   const { isAdmin } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
+  const isCostMode = mode === 'cost';
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClientId, setSelectedClientId] = useState<string>('');
   const [invoiceNumber, setInvoiceNumber] = useState('');
@@ -448,11 +457,52 @@ export function CreateInvoiceDialog({
       const itemsToInsert = itemsToInsertWithCosts;
 
       toast({
-        title: 'Invoice Created',
-        description: `Invoice ${invoice.invoice_number} has been created with ${itemsToInsert.length} item(s).`,
+        title: isCostMode ? 'Cost Report Created' : 'Invoice Created',
+        description: `${isCostMode ? 'Cost report' : 'Invoice'} ${invoice.invoice_number} has been created with ${itemsToInsert.length} item(s).`,
       });
 
       onOpenChange(false);
+
+      // In cost-report mode, open the watermarked Cost PDF directly here so
+      // the user gets the same download experience as a normal invoice flow,
+      // but for cost. The parent's onSuccess still fires so the row appears
+      // in the invoice list (admins can mark it draft / delete if it was
+      // only meant as a one-off analysis).
+      if (isCostMode) {
+        const costMeta = {
+          invoice_number: invoice.invoice_number,
+          created_at: invoice.created_at || new Date().toISOString(),
+          due_date: dueDate ? format(dueDate, 'yyyy-MM-dd') : null,
+          currency: invoiceCurrency,
+          client: selectedClient
+            ? { name: selectedClient.name, brand_name: selectedClient.brand_name, address: selectedClient.address }
+            : null,
+        };
+        const costItems = itemsToInsert.map((row: any) => ({
+          product_name: row.product_name,
+          inclusions: row.inclusions,
+          quantity: row.quantity,
+          unit_price: row.unit_price,
+          amount: row.amount,
+          unit_cost_snapshot: row.unit_cost_snapshot ?? null,
+          cost_currency: row.cost_currency ?? null,
+          profit_per_unit: row.profit_per_unit ?? null,
+          margin_percent: row.margin_percent ?? null,
+        }));
+        const opened = openCostInvoiceWindow(costMeta, costItems, {
+          title: 'Cost Report',
+          subtitle: `Internal cost & margin breakdown for ${invoice.invoice_number}`,
+          bannerText: '⚠ Internal — Cost Report — Do not share with client',
+        });
+        if (!opened) {
+          toast({
+            title: 'Pop-up blocked',
+            description: 'Allow pop-ups to open the Cost Report PDF. The report is saved — you can re-open it from the invoice viewer.',
+            variant: 'destructive',
+          });
+        }
+      }
+
       onSuccess?.({
         id: invoice.id,
         invoice_number: invoice.invoice_number,
@@ -485,11 +535,13 @@ export function CreateInvoiceDialog({
       <DialogContent className="sm:max-w-[900px] h-[90vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
-            Create Invoice
+            {isCostMode ? <FileBarChart className="h-5 w-5 text-amber-600" /> : <FileText className="h-5 w-5 text-primary" />}
+            {isCostMode ? 'New Cost Report' : 'Create Invoice'}
           </DialogTitle>
           <DialogDescription>
-            Create an invoice with multiple products for a client.
+            {isCostMode
+              ? 'Same picker flow as a normal invoice — but generates the watermarked Cost PDF (admin-only) instead of the client invoice. The record is saved as a draft so you can re-open the cost PDF later from the invoice list.'
+              : 'Create an invoice with multiple products for a client.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -880,9 +932,10 @@ export function CreateInvoiceDialog({
           <Button
             onClick={handleSubmit}
             disabled={isLoading || !selectedClientId}
+            className={isCostMode ? 'bg-amber-600 hover:bg-amber-700 text-white' : ''}
           >
             {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Create Invoice
+            {isCostMode ? 'Generate Cost Report' : 'Create Invoice'}
           </Button>
         </DialogFooter>
       </DialogContent>

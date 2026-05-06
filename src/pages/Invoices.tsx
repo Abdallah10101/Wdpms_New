@@ -27,6 +27,7 @@ import {
   Download,
   DollarSign,
   Trash2,
+  FileBarChart,
 } from 'lucide-react';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -65,6 +66,9 @@ export default function Invoices() {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [viewerOpen, setViewerOpen] = useState(false);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  // Single dialog instance, two modes: 'client' for normal invoice creation,
+  // 'cost' for the parallel "New Cost Report" entry point (admin-only).
+  const [createDialogMode, setCreateDialogMode] = useState<'client' | 'cost'>('client');
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [paymentInvoice, setPaymentInvoice] = useState<Invoice | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
@@ -326,7 +330,23 @@ export default function Invoices() {
               <Download className="mr-2 h-4 w-4" />
               Export CSV
             </Button>
-            <Button onClick={() => setCreateDialogOpen(true)}>
+            {role === 'admin' && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCreateDialogMode('cost');
+                  setCreateDialogOpen(true);
+                }}
+                className="border-amber-300 text-amber-900 hover:bg-amber-50 dark:border-amber-700 dark:text-amber-200 dark:hover:bg-amber-950/40"
+              >
+                <FileBarChart className="mr-2 h-4 w-4" />
+                New Cost Report
+              </Button>
+            )}
+            <Button onClick={() => {
+              setCreateDialogMode('client');
+              setCreateDialogOpen(true);
+            }}>
               <Plus className="mr-2 h-4 w-4" />
               New Invoice
             </Button>
@@ -549,24 +569,34 @@ export default function Invoices() {
         currency={selectedInvoice?.currency || 'EUR'}
       />
 
-      {/* Create Invoice Dialog */}
+      {/* Create Invoice / Cost Report Dialog. Same picker flow, two modes. */}
       <CreateInvoiceDialog
         open={createDialogOpen}
-        onOpenChange={setCreateDialogOpen}
+        onOpenChange={(open) => {
+          setCreateDialogOpen(open);
+          // Reset mode after closing so the next open defaults back to client.
+          if (!open) setCreateDialogMode('client');
+        }}
+        mode={createDialogMode}
         availableCurrencies={currencies}
         ratesFromEUR={ratesFromEUR}
         onSuccess={async (invoiceInfo) => {
-          // Log activity first before fetching
           if (invoiceInfo) {
-            await logActivity('invoice_created', invoiceInfo.invoice_number, {
-              invoice_id: invoiceInfo.id,
-              client: invoiceInfo.client_name,
-              total: invoiceInfo.total,
-            });
+            await logActivity(
+              createDialogMode === 'cost' ? 'cost_report_created' : 'invoice_created',
+              invoiceInfo.invoice_number,
+              {
+                invoice_id: invoiceInfo.id,
+                client: invoiceInfo.client_name,
+                total: invoiceInfo.total,
+              },
+            );
           }
           await fetchInvoices();
-          if (invoiceInfo) {
-            // Auto-open the newly created invoice for preview
+          // Only auto-open the InvoiceViewer for client invoices — in cost
+          // mode the dialog already opened the Cost PDF in a new tab and
+          // popping the dialog viewer would be redundant.
+          if (invoiceInfo && createDialogMode !== 'cost') {
             const { data } = await supabase
               .from('invoices')
               .select('*, client:clients(name, brand_name, address), order:orders(order_number, product_name)')

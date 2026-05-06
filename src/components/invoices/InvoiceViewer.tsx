@@ -8,6 +8,7 @@ import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { escapeHtml } from '@/lib/html-escape';
 import { useAuth } from '@/hooks/useAuth';
+import { openCostInvoiceWindow } from '@/lib/costInvoiceTemplate';
 export type InvoiceStatus = 'draft' | 'sent' | 'viewed' | 'partially_paid' | 'paid' | 'overdue';
 
 export interface InvoiceItem {
@@ -169,240 +170,35 @@ export function InvoiceViewer({
     ? subtotal / invoice.quantity
     : invoice.wholesale_price;
 
-  // Reusable formatter for the invoice currency.
-  const formatAmountInCur = (value: number, cur: string): string => {
-    try {
-      return new Intl.NumberFormat('en-US', {
-        style: 'currency',
-        currency: cur,
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      }).format(value);
-    } catch {
-      return `${cur} ${value.toFixed(2)}`;
-    }
-  };
-
-  // Internal Cost Invoice — admin-only PDF that renders the same line items
-  // with cost / profit / margin columns plus a footer summary, and a
-  // "DO NOT SHARE" watermark across every page. This intentionally lives
-  // alongside the client-facing handlePrint so the two outputs can diverge.
+  // Internal Cost Invoice — admin-only. The HTML template lives in
+  // src/lib/costInvoiceTemplate.ts so the standalone "New Cost Report"
+  // creation flow can call the same renderer.
   const handlePrintCostInvoice = () => {
     if (!isAdmin) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-
-    const effCur = invoice.currency || currency;
-    const fmt = (v: number) => formatAmountInCur(v, effCur);
-
-    const clientName = escapeHtml(invoice.client?.brand_name || invoice.client?.name || 'Client');
-    const clientAddress = escapeHtml(invoice.client?.address || '');
-    const invoiceNumber = escapeHtml(invoice.invoice_number);
-
-    let totalCost = 0;
-    let totalRevenue = 0;
-    const itemRowsHtml = items.length > 0
-      ? items.map((item) => {
-          const unitCostInCostCur = Number(item.unit_cost_snapshot) || 0;
-          const profitPerUnit = Number(item.profit_per_unit) || 0;
-          const marginPct = Number(item.margin_percent) || 0;
-          const lineCost = (Number(item.unit_price) - profitPerUnit) * item.quantity;
-          const lineRevenue = item.amount;
-          totalCost += lineCost;
-          totalRevenue += lineRevenue;
-          const costCur = item.cost_currency || effCur;
-          const profitPositive = profitPerUnit >= 0;
-          return `
-            <tr>
-              <td>${item.quantity}</td>
-              <td>
-                <div style="font-weight:600;color:#1c1917;">${escapeHtml(item.product_name)}</div>
-                ${item.inclusions && item.inclusions.length > 0 ? `<div style="color:#78716c;font-size:10.5px;margin-top:4px;">${item.inclusions.map((i) => escapeHtml(i)).join(' · ')}</div>` : ''}
-              </td>
-              <td style="text-align:right;">${unitCostInCostCur > 0 ? `${escapeHtml(costCur)} ${unitCostInCostCur.toFixed(2)}` : '—'}</td>
-              <td style="text-align:right;">${fmt(lineCost)}</td>
-              <td style="text-align:right;">${fmt(item.unit_price)}</td>
-              <td style="text-align:right;">${fmt(lineRevenue)}</td>
-              <td style="text-align:right;color:${profitPositive ? '#15803d' : '#b91c1c'};font-weight:600;">${fmt(profitPerUnit * item.quantity)}</td>
-              <td style="text-align:right;color:${profitPositive ? '#15803d' : '#b91c1c'};font-weight:600;">${marginPct.toFixed(1)}%</td>
-            </tr>`;
-        }).join('')
-      : `<tr><td colspan="8" style="text-align:center;color:#78716c;padding:24px;">No line items found for this invoice.</td></tr>`;
-
-    const totalProfit = totalRevenue - totalCost;
-    const overallMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
-    const profitPositive = totalProfit >= 0;
-
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <title>Cost Invoice ${invoiceNumber} — INTERNAL</title>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    html, body { height: 100%; }
-    body { font-family: 'Inter', -apple-system, sans-serif; background: white; color: #1c1917; font-size: 13px; min-height: 100vh; position: relative; }
-    .page-wrapper { padding: 48px 56px 100px 56px; min-height: 100vh; position: relative; }
-
-    /* Watermark — repeats diagonally across every printed page. */
-    .watermark { position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 0; overflow: hidden; }
-    .watermark::before {
-      content: 'INTERNAL · COST INVOICE · DO NOT SHARE';
-      position: absolute; top: 50%; left: 50%;
-      transform: translate(-50%, -50%) rotate(-30deg);
-      font-size: 70px; font-weight: 800; letter-spacing: 6px;
-      color: rgba(212, 81, 30, 0.08); white-space: nowrap;
+    const ok = openCostInvoiceWindow(
+      {
+        invoice_number: invoice.invoice_number,
+        created_at: invoice.created_at,
+        due_date: invoice.due_date,
+        currency: invoice.currency || currency,
+        client: invoice.client || null,
+      },
+      items.map((it) => ({
+        product_name: it.product_name,
+        inclusions: it.inclusions,
+        quantity: it.quantity,
+        unit_price: it.unit_price,
+        amount: it.amount,
+        unit_cost_snapshot: it.unit_cost_snapshot ?? null,
+        cost_currency: it.cost_currency ?? null,
+        profit_per_unit: it.profit_per_unit ?? null,
+        margin_percent: it.margin_percent ?? null,
+      })),
+    );
+    if (!ok) {
+      // Pop-ups blocked — silently no-op (UI button still highlights any
+      // browser-level prompt). A toast here would clutter the dialog header.
     }
-    .page-content { position: relative; z-index: 1; }
-
-    .logo-section { position: absolute; top: 40px; right: 56px; text-align: right; }
-    .logo-text { font-weight: 800; font-size: 52px; color: #1c1917; letter-spacing: 4px; line-height: 1; }
-    .logo-dots { position: relative; top: -38px; left: 2px; }
-    .logo-dots span { display: inline-block; width: 6px; height: 6px; background: #D4511E; border-radius: 1.5px; margin: 0 1px; }
-
-    .internal-banner { background: #fef3c7; border-left: 4px solid #d97706; padding: 12px 16px; margin-bottom: 24px; display: flex; align-items: center; gap: 12px; }
-    .internal-banner-text { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: #92400e; }
-
-    .company-section { margin-bottom: 32px; max-width: 65%; }
-    .company-name { font-weight: 700; font-size: 16px; color: #1c1917; margin-bottom: 2px; }
-    .company-brand { font-weight: 600; font-size: 13px; color: #D4511E; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
-    .company-detail { font-size: 11.5px; line-height: 1.7; color: #57534e; }
-
-    .invoice-title-section { margin-bottom: 24px; }
-    .invoice-title { font-weight: 800; font-size: 28px; color: #D4511E; text-transform: uppercase; letter-spacing: 3px; }
-    .invoice-subtitle { font-size: 12px; color: #78716c; margin-top: 4px; font-weight: 500; }
-
-    .info-grid { display: flex; justify-content: space-between; margin-bottom: 28px; }
-    .bill-to { flex: 1; }
-    .section-label { font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #D4511E; margin-bottom: 10px; }
-    .client-name { font-weight: 600; font-size: 14px; color: #1c1917; margin-bottom: 4px; }
-    .client-address { font-size: 12px; color: #57534e; line-height: 1.6; }
-    .invoice-meta { text-align: right; min-width: 240px; }
-    .meta-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #f5f5f4; }
-    .meta-label { font-weight: 600; font-size: 10.5px; text-transform: uppercase; letter-spacing: 1px; color: #78716c; }
-    .meta-value { font-weight: 500; font-size: 12px; color: #1c1917; }
-
-    .divider { height: 3px; background: #D4511E; margin-bottom: 18px; }
-
-    table.cost-table { width: 100%; border-collapse: collapse; margin-bottom: 28px; }
-    table.cost-table thead { background: #1c1917; }
-    table.cost-table th { padding: 10px 8px; text-align: left; color: white; font-weight: 600; font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.5px; }
-    table.cost-table th.right { text-align: right; }
-    table.cost-table td { padding: 10px 8px; border-bottom: 1px solid #f0eeec; font-size: 11.5px; vertical-align: top; }
-    table.cost-table tbody tr:nth-child(even) { background: #fafaf9; }
-
-    .summary-section { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 16px; }
-    .summary-card { padding: 14px 16px; border-radius: 6px; border: 1px solid #e7e5e4; }
-    .summary-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: #78716c; font-weight: 600; }
-    .summary-value { font-size: 22px; font-weight: 700; color: #1c1917; margin-top: 4px; }
-    .summary-card.profit .summary-value { color: ${profitPositive ? '#15803d' : '#b91c1c'}; }
-    .summary-card.margin { background: ${profitPositive ? '#dcfce7' : '#fee2e2'}; border-color: ${profitPositive ? '#86efac' : '#fca5a5'}; }
-    .summary-card.margin .summary-value { color: ${profitPositive ? '#15803d' : '#b91c1c'}; }
-
-    .footer-bar { position: fixed; bottom: 0; left: 0; right: 0; height: 36px; background: #1c1917; }
-    .footer-content { height: 100%; display: flex; align-items: center; justify-content: space-between; padding: 0 56px; color: rgba(255,255,255,0.85); font-size: 10px; letter-spacing: 1.5px; text-transform: uppercase; }
-
-    @media print {
-      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .page-wrapper { padding: 36px 44px 70px 44px; }
-      @page { margin: 0; size: A4; }
-    }
-  </style>
-</head>
-<body>
-  <div class="watermark"></div>
-  <div class="page-wrapper">
-    <div class="page-content">
-      <div class="logo-section">
-        <div><span class="logo-dots"><span></span><span></span><span></span></span></div>
-        <div class="logo-text">WDS</div>
-      </div>
-
-      <div class="internal-banner">
-        <span class="internal-banner-text">⚠ Internal — Cost Invoice — Do not share with client</span>
-      </div>
-
-      <div class="company-section">
-        <div class="company-name">MOHAMMAD AL SAYED</div>
-        <div class="company-brand">WorkDuShop</div>
-        <div class="company-detail">
-          ROSEVELT TEKSTİL İÇ VE DIŞ TİCARET LİMİTED ŞİRKETİ<br>
-          ŞEHREMİNİ MAH. VELET ÇELEBİ SK. NO:9/A FAİTH/İST<br>
-          FAİTH V.D: 7352021157 &nbsp;|&nbsp; MERSİS NO: 0735202115700001
-        </div>
-      </div>
-
-      <div class="invoice-title-section">
-        <div class="invoice-title">Cost Invoice</div>
-        <div class="invoice-subtitle">Internal cost &amp; margin breakdown for ${invoiceNumber}</div>
-      </div>
-
-      <div class="info-grid">
-        <div class="bill-to">
-          <div class="section-label">Client</div>
-          <div class="client-name">${clientName}</div>
-          ${clientAddress ? `<div class="client-address">${clientAddress}</div>` : ''}
-        </div>
-        <div class="invoice-meta">
-          <div class="meta-row"><span class="meta-label">Invoice #</span><span class="meta-value">${invoiceNumber}</span></div>
-          <div class="meta-row"><span class="meta-label">Issued</span><span class="meta-value">${format(new Date(invoice.created_at), 'dd/MM/yyyy')}</span></div>
-          ${invoice.due_date ? `<div class="meta-row"><span class="meta-label">Due Date</span><span class="meta-value">${format(new Date(invoice.due_date), 'dd/MM/yyyy')}</span></div>` : ''}
-          <div class="meta-row"><span class="meta-label">Currency</span><span class="meta-value">${escapeHtml(effCur)}</span></div>
-        </div>
-      </div>
-
-      <div class="divider"></div>
-
-      <table class="cost-table">
-        <thead>
-          <tr>
-            <th style="width:40px;">QTY</th>
-            <th>Description</th>
-            <th class="right" style="width:100px;">Unit Cost</th>
-            <th class="right" style="width:100px;">Line Cost</th>
-            <th class="right" style="width:100px;">Unit Price</th>
-            <th class="right" style="width:100px;">Revenue</th>
-            <th class="right" style="width:100px;">Profit</th>
-            <th class="right" style="width:80px;">Margin</th>
-          </tr>
-        </thead>
-        <tbody>${itemRowsHtml}</tbody>
-      </table>
-
-      <div class="summary-section">
-        <div class="summary-card">
-          <div class="summary-label">Total Costs</div>
-          <div class="summary-value">${fmt(totalCost)}</div>
-        </div>
-        <div class="summary-card">
-          <div class="summary-label">Total Revenue</div>
-          <div class="summary-value">${fmt(totalRevenue)}</div>
-        </div>
-        <div class="summary-card profit">
-          <div class="summary-label">Total Profit</div>
-          <div class="summary-value">${fmt(totalProfit)}</div>
-        </div>
-        <div class="summary-card margin">
-          <div class="summary-label">Overall Margin</div>
-          <div class="summary-value">${overallMargin.toFixed(1)}%</div>
-        </div>
-      </div>
-    </div>
-  </div>
-  <div class="footer-bar">
-    <div class="footer-content">
-      <span>Internal · Cost &amp; Margin Report</span>
-      <span>Generated ${escapeHtml(format(new Date(), "d MMM yyyy 'at' HH:mm"))}</span>
-    </div>
-  </div>
-  <script>
-    window.addEventListener('load', () => { setTimeout(() => window.print(), 250); });
-  </script>
-</body>
-</html>`;
-
-    printWindow.document.write(html);
-    printWindow.document.close();
   };
 
   const handlePrint = () => {
