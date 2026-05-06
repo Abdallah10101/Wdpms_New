@@ -83,6 +83,15 @@ export default function NewOrder() {
     () => SIZE_OPTIONS.reduce((acc, s) => ({ ...acc, [s]: '' }), {} as Record<SizeKey, string>)
   );
 
+  // Internal costs (admin-only). Stored in cost_currency on the order; the
+  // invoice creation flow snapshots them onto invoice_items at the time of issue.
+  const [costs, setCosts] = useState({
+    fabric_cost: '',
+    pattern_cost: '',
+    cut_sew_cost: '',
+    cost_currency: 'TRY',
+  });
+
   const sizeBreakdownTotal = SIZE_OPTIONS.reduce(
     (sum, s) => sum + (parseInt(sizeBreakdown[s]) || 0),
     0
@@ -180,6 +189,18 @@ export default function NewOrder() {
       if (hasSizeBreakdown) {
         basePayload.size_breakdown = sizeBreakdownPayload;
       }
+      // Internal costs — only attach when the user actually filled at least
+      // one. Same PGRST204-tolerance pattern as size_breakdown.
+      const fabricCost = costs.fabric_cost ? Number(costs.fabric_cost) : null;
+      const patternCost = costs.pattern_cost ? Number(costs.pattern_cost) : null;
+      const cutSewCost = costs.cut_sew_cost ? Number(costs.cut_sew_cost) : null;
+      const hasAnyCost = fabricCost != null || patternCost != null || cutSewCost != null;
+      if (hasAnyCost) {
+        basePayload.fabric_cost = fabricCost;
+        basePayload.pattern_cost = patternCost;
+        basePayload.cut_sew_cost = cutSewCost;
+        basePayload.cost_currency = costs.cost_currency || 'TRY';
+      }
 
       let { data, error } = await supabase
         .from('orders')
@@ -187,22 +208,34 @@ export default function NewOrder() {
         .select()
         .single();
 
-      // If the size_breakdown column doesn't exist yet (migration pending),
-      // retry without it so order creation still works — but warn the user
-      // that the size breakdown wasn't saved.
-      if (error && (error as any).code === 'PGRST204' && hasSizeBreakdown) {
-        const { size_breakdown: _omit, ...payloadWithoutSizes } = basePayload;
+      // If a column doesn't exist yet (migration pending), strip the optional
+      // columns and retry so order creation still succeeds — then surface a
+      // soft warning so the admin knows to deploy the migration.
+      if (error && (error as any).code === 'PGRST204') {
+        const {
+          size_breakdown: _omitSize,
+          fabric_cost: _omitF,
+          pattern_cost: _omitP,
+          cut_sew_cost: _omitC,
+          cost_currency: _omitCur,
+          ...payloadStripped
+        } = basePayload;
         const retry = await supabase
           .from('orders')
-          .insert(payloadWithoutSizes as any)
+          .insert(payloadStripped as any)
           .select()
           .single();
         data = retry.data;
         error = retry.error;
         if (!error) {
+          const skipped: string[] = [];
+          if (hasSizeBreakdown) skipped.push('size breakdown');
+          if (hasAnyCost) skipped.push('internal costs');
           toast({
-            title: 'Order saved without size breakdown',
-            description: 'The size breakdown column is not deployed yet — ask an admin to run the latest Supabase migration.',
+            title: skipped.length ? `Order saved without ${skipped.join(' & ')}` : 'Order saved',
+            description: skipped.length
+              ? 'The latest Supabase migration is not deployed — ask an admin to run `supabase db push`.'
+              : '',
           });
         }
       }
@@ -472,6 +505,70 @@ export default function NewOrder() {
                     ))}
                   </div>
                 </div>
+
+                {/* Internal Costs (admin-only — used to compute profit/margin
+                     when an invoice is generated from this product) */}
+                {role === 'admin' && (
+                  <div className="space-y-3 sm:col-span-2 pt-2 border-t">
+                    <div className="flex items-center justify-between">
+                      <Label>Internal Costs</Label>
+                      <Select
+                        value={costs.cost_currency}
+                        onValueChange={(v) => setCosts({ ...costs, cost_currency: v })}
+                      >
+                        <SelectTrigger className="w-32 h-8">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {['TRY', 'EUR', 'USD', 'GBP', 'AED', 'SAR'].map((c) => (
+                            <SelectItem key={c} value={c}>{c}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Per-unit costs in the selected currency. Used to compute profit and margin when invoicing — never shown to clients.
+                    </p>
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <div className="space-y-1">
+                        <Label htmlFor="fabric_cost" className="text-xs">Fabric Cost</Label>
+                        <Input
+                          id="fabric_cost"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={costs.fabric_cost}
+                          onChange={(e) => setCosts({ ...costs, fabric_cost: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="pattern_cost" className="text-xs">Pattern Cost</Label>
+                        <Input
+                          id="pattern_cost"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={costs.pattern_cost}
+                          onChange={(e) => setCosts({ ...costs, pattern_cost: e.target.value })}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="cut_sew_cost" className="text-xs">Cut & Sew Cost</Label>
+                        <Input
+                          id="cut_sew_cost"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          value={costs.cut_sew_cost}
+                          onChange={(e) => setCosts({ ...costs, cut_sew_cost: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Process Types / Design Types */}
                 <div className="space-y-3 sm:col-span-2">

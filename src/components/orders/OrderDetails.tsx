@@ -5,7 +5,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/integrations/supabase/client';
 import {
   Pencil,
@@ -63,8 +65,18 @@ const EMPTY_SAMPLE_DETAILS = {
 
 export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+
+  // Hydrate internal costs from the row, treating nulls as empty strings so
+  // inputs stay controlled.
+  const hydrateCosts = (o: Order) => ({
+    fabric_cost: (o as any).fabric_cost == null ? '' : String((o as any).fabric_cost),
+    pattern_cost: (o as any).pattern_cost == null ? '' : String((o as any).pattern_cost),
+    cut_sew_cost: (o as any).cut_sew_cost == null ? '' : String((o as any).cut_sew_cost),
+    cost_currency: (o as any).cost_currency || 'TRY',
+  });
 
   // Hydrate sample_details from the row, falling back to empty strings so
   // the inputs stay controlled even on bulk orders that never set them.
@@ -119,6 +131,7 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
   const [sampleDetails, setSampleDetails] = useState(() => hydrateSampleDetails(order));
   const [accessories, setAccessories] = useState(() => hydrateAccessories(order));
   const [sizeBreakdown, setSizeBreakdown] = useState(() => hydrateSizeBreakdown(order));
+  const [costs, setCosts] = useState(() => hydrateCosts(order));
 
   const sizeBreakdownTotal = SIZE_OPTIONS.reduce(
     (sum, s) => sum + (parseInt(sizeBreakdown[s]) || 0),
@@ -174,28 +187,48 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
         created_at: formData.created_at ? new Date(formData.created_at).toISOString() : order.created_at,
         sample_details: sampleDetailsPayload,
       };
-      // size_breakdown is conditionally added so we don't 400 if the column
-      // hasn't been deployed yet on this database.
+      // Optional columns gated behind a migration are added conditionally so
+      // we can fall back if PGRST204 says the column doesn't exist yet.
       basePayload.size_breakdown = hasSizeBreakdown ? sizeBreakdownPayload : null;
+      // Internal costs — only admins see these inputs but the persistence is
+      // unconditional so admin-managed values aren't silently dropped.
+      if (isAdmin) {
+        basePayload.fabric_cost = costs.fabric_cost === '' ? null : Number(costs.fabric_cost);
+        basePayload.pattern_cost = costs.pattern_cost === '' ? null : Number(costs.pattern_cost);
+        basePayload.cut_sew_cost = costs.cut_sew_cost === '' ? null : Number(costs.cut_sew_cost);
+        basePayload.cost_currency = costs.cost_currency || 'TRY';
+      }
 
       let { error } = await supabase
         .from('orders')
         .update(basePayload as any)
         .eq('id', order.id);
 
-      // Retry without size_breakdown if the migration is missing.
+      // Retry without optional columns if any are missing on this DB.
       if (error && (error as any).code === 'PGRST204') {
-        const { size_breakdown: _omit, ...payloadWithoutSizes } = basePayload;
+        const {
+          size_breakdown: _omitSize,
+          fabric_cost: _omitF,
+          pattern_cost: _omitP,
+          cut_sew_cost: _omitC,
+          cost_currency: _omitCur,
+          ...payloadStripped
+        } = basePayload;
         const retry = await supabase
           .from('orders')
-          .update(payloadWithoutSizes as any)
+          .update(payloadStripped as any)
           .eq('id', order.id);
         error = retry.error;
-        if (!error && hasSizeBreakdown) {
-          toast({
-            title: 'Saved without size breakdown',
-            description: 'The size_breakdown column is not deployed on this database yet — ask an admin to run the latest Supabase migration.',
-          });
+        if (!error) {
+          const skipped: string[] = [];
+          if (hasSizeBreakdown) skipped.push('size breakdown');
+          if (isAdmin && (costs.fabric_cost || costs.pattern_cost || costs.cut_sew_cost)) skipped.push('internal costs');
+          if (skipped.length) {
+            toast({
+              title: `Saved without ${skipped.join(' & ')}`,
+              description: 'The latest Supabase migration is not deployed on this database yet.',
+            });
+          }
         }
       }
 
@@ -237,6 +270,7 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
     setSampleDetails(hydrateSampleDetails(order));
     setAccessories(hydrateAccessories(order));
     setSizeBreakdown(hydrateSizeBreakdown(order));
+    setCosts(hydrateCosts(order));
     setIsEditing(false);
   };
 
@@ -562,6 +596,70 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
               })}
             </div>
           </div>
+
+          {/* Internal Costs (admin-only). Per-unit costs in the chosen currency.
+              Used to compute profit and margin when an invoice is created. */}
+          {isAdmin && (
+            <div className="space-y-3 pt-2 border-t">
+              <div className="flex items-center justify-between">
+                <Label>Internal Costs</Label>
+                <Select
+                  value={costs.cost_currency}
+                  onValueChange={(v) => setCosts({ ...costs, cost_currency: v })}
+                >
+                  <SelectTrigger className="w-32 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {['TRY', 'EUR', 'USD', 'GBP', 'AED', 'SAR'].map((c) => (
+                      <SelectItem key={c} value={c}>{c}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Per-unit costs in the selected currency. Never appear on the client invoice.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="space-y-1">
+                  <Label htmlFor="edit_fabric_cost" className="text-xs">Fabric Cost</Label>
+                  <Input
+                    id="edit_fabric_cost"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="0.00"
+                    value={costs.fabric_cost}
+                    onChange={(e) => setCosts({ ...costs, fabric_cost: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="edit_pattern_cost" className="text-xs">Pattern Cost</Label>
+                  <Input
+                    id="edit_pattern_cost"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="0.00"
+                    value={costs.pattern_cost}
+                    onChange={(e) => setCosts({ ...costs, pattern_cost: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="edit_cut_sew_cost" className="text-xs">Cut & Sew Cost</Label>
+                  <Input
+                    id="edit_cut_sew_cost"
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="0.00"
+                    value={costs.cut_sew_cost}
+                    onChange={(e) => setCosts({ ...costs, cut_sew_cost: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -673,6 +771,51 @@ export function OrderDetails({ order, canEdit, onUpdate }: OrderDetailsProps) {
                 </div>
               </div>
             )}
+          </div>
+        );
+      })()}
+
+      {/* Internal Costs (admin-only). Read-only display; the Edit button gives
+          access to the input fields above. */}
+      {isAdmin && (() => {
+        const fc = (order as any).fabric_cost;
+        const pc = (order as any).pattern_cost;
+        const csc = (order as any).cut_sew_cost;
+        const cur = (order as any).cost_currency || 'TRY';
+        if (fc == null && pc == null && csc == null) return null;
+        const totalUnit = (Number(fc) || 0) + (Number(pc) || 0) + (Number(csc) || 0);
+        const fmt = (v: any) => {
+          if (v == null) return '—';
+          try {
+            return new Intl.NumberFormat('en-US', { style: 'currency', currency: cur, minimumFractionDigits: 2 }).format(Number(v));
+          } catch {
+            return `${cur} ${Number(v).toFixed(2)}`;
+          }
+        };
+        return (
+          <div className="space-y-2 p-3 rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900/50">
+            <div className="flex items-center justify-between">
+              <h4 className="font-semibold text-sm">Internal Costs</h4>
+              <Badge variant="outline" className="text-[10px] uppercase tracking-wide">Admin only</Badge>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+              <div>
+                <p className="text-xs text-muted-foreground">Fabric</p>
+                <p className="font-medium">{fmt(fc)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Pattern</p>
+                <p className="font-medium">{fmt(pc)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Cut & Sew</p>
+                <p className="font-medium">{fmt(csc)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Total / unit</p>
+                <p className="font-semibold">{fmt(totalUnit)}</p>
+              </div>
+            </div>
           </div>
         );
       })()}

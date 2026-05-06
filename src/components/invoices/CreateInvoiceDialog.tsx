@@ -17,7 +17,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Checkbox } from '@/components/ui/checkbox';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { CalendarIcon, Loader2, FileText, Plus, Trash2, Package } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { CalendarIcon, Loader2, FileText, Plus, Trash2, Package, TrendingUp, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -31,6 +32,11 @@ interface Order {
   has_embroidery: boolean;
   has_wash_house: boolean;
   fabric: string | null;
+  // Internal costs — null when not set, used to compute profit/margin.
+  fabric_cost: number | null;
+  pattern_cost: number | null;
+  cut_sew_cost: number | null;
+  cost_currency: string | null;
   client?: {
     id: string;
     name: string;
@@ -109,6 +115,7 @@ export function CreateInvoiceDialog({
   ratesFromEUR = {},
 }: CreateInvoiceDialogProps) {
   const { toast } = useToast();
+  const { isAdmin } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [orders, setOrders] = useState<Order[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -151,11 +158,25 @@ export function CreateInvoiceDialog({
 
   const fetchData = async () => {
     try {
-      // Fetch orders with client info
-      const { data: ordersData, error: ordersError } = await supabase
+      // Fetch orders with client info. Cost columns are pulled too — they
+      // only display for admins, but fetching unconditionally avoids needing
+      // a separate query when an admin loads the dialog.
+      // If the cost migration hasn't run yet on this DB, the SELECT will fail
+      // with PGRST204; we retry without those columns so the dialog still works.
+      const fullSelect = 'id, order_number, product_name, quantity, client_id, has_printing, has_embroidery, has_wash_house, fabric, fabric_cost, pattern_cost, cut_sew_cost, cost_currency, client:clients(id, name, brand_name, address)';
+      const fallbackSelect = 'id, order_number, product_name, quantity, client_id, has_printing, has_embroidery, has_wash_house, fabric, client:clients(id, name, brand_name, address)';
+      let ordersData: any[] | null = null;
+      let ordersError: any = null;
+      ({ data: ordersData, error: ordersError } = await supabase
         .from('orders')
-        .select('id, order_number, product_name, quantity, client_id, has_printing, has_embroidery, has_wash_house, fabric, client:clients(id, name, brand_name, address)')
-        .order('created_at', { ascending: false });
+        .select(fullSelect)
+        .order('created_at', { ascending: false }));
+      if (ordersError && (ordersError as any).code === 'PGRST204') {
+        ({ data: ordersData, error: ordersError } = await supabase
+          .from('orders')
+          .select(fallbackSelect)
+          .order('created_at', { ascending: false }));
+      }
 
       if (ordersError) throw ordersError;
       setOrders((ordersData || []) as unknown as Order[]);
@@ -238,6 +259,86 @@ export function CreateInvoiceDialog({
     return lineItems.reduce((sum, item) => sum + ((Number(item.quantity) || 0) * (Number(item.unitPrice) || 0)), 0);
   };
 
+  // Convert an amount from one currency to another using the EUR-pivoted FX
+  // table the parent already loads. Returns the same number if rates aren't
+  // available yet — graceful degrade rather than breaking the live preview.
+  const convertCurrency = (amount: number, from: string, to: string): number => {
+    if (!amount || !from || !to || from === to) return amount;
+    const fromUp = from.toUpperCase();
+    const toUp = to.toUpperCase();
+    const fromRate = fromUp === 'EUR' ? 1 : ratesFromEUR[fromUp];
+    const toRate = toUp === 'EUR' ? 1 : ratesFromEUR[toUp];
+    if (!fromRate || !toRate) return amount;
+    // amount in `from` -> EUR -> `to`
+    return (amount / fromRate) * toRate;
+  };
+
+  // Per-line cost summary used by the live margin panel. All numbers returned
+  // are in the invoice currency so the user sees apples-to-apples math.
+  const computeLineCostSummary = (item: InvoiceLineItem) => {
+    const order = orders.find((o) => o.id === item.orderId);
+    if (!order || (order.fabric_cost == null && order.pattern_cost == null && order.cut_sew_cost == null)) {
+      return null;
+    }
+    const cur = order.cost_currency || 'TRY';
+    const fabric = Number(order.fabric_cost) || 0;
+    const pattern = Number(order.pattern_cost) || 0;
+    const cutSew = Number(order.cut_sew_cost) || 0;
+    const totalUnitInCostCur = fabric + pattern + cutSew;
+    const totalUnitInInvoiceCur = convertCurrency(totalUnitInCostCur, cur, invoiceCurrency);
+    const qty = Number(item.quantity) || 0;
+    const unitPrice = Number(item.unitPrice) || 0;
+    const totalCost = totalUnitInInvoiceCur * qty;
+    const totalRevenue = unitPrice * qty;
+    const profit = totalRevenue - totalCost;
+    const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+    return {
+      costCurrency: cur,
+      fabric,
+      pattern,
+      cutSew,
+      totalUnitInCostCur,
+      totalUnitInInvoiceCur,
+      totalCost,
+      totalRevenue,
+      profit,
+      margin,
+    };
+  };
+
+  // Roll-up across all line items for the dialog footer.
+  const overallCostSummary = (() => {
+    let totalCost = 0;
+    let totalRevenue = 0;
+    for (const item of lineItems) {
+      const summary = computeLineCostSummary(item);
+      if (summary) {
+        totalCost += summary.totalCost;
+        totalRevenue += summary.totalRevenue;
+      } else {
+        // Item has no order link / no cost data — still count revenue so the
+        // footer matches the invoice total but treat cost as 0.
+        totalRevenue += (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0);
+      }
+    }
+    const profit = totalRevenue - totalCost;
+    const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+    return { totalCost, totalRevenue, profit, margin };
+  })();
+
+  const formatInInvoiceCurrency = (value: number): string => {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: invoiceCurrency,
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      }).format(value);
+    } catch {
+      return `${invoiceCurrency} ${value.toFixed(2)}`;
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedClientId) {
       toast({
@@ -288,26 +389,63 @@ export function CreateInvoiceDialog({
 
       if (invoiceError) throw invoiceError;
 
-      // Create invoice items
-      const itemsToInsert = lineItems
-        .filter(item => item.productName)
-        .map((item, idx) => ({
-          invoice_id: invoice.id,
-          order_id: item.orderId,
-          product_name: item.productName,
-          description: item.description,
-          inclusions: item.inclusions,
-          quantity: Number(item.quantity) || 0,
-          unit_price: Number(item.unitPrice) || 0,
-          amount: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
-          sort_order: idx,
-        }));
+      // Create invoice items, snapshotting cost numbers so the historical
+      // profit/margin survives later edits to the order's cost fields.
+      const itemsToInsertWithCosts = lineItems
+        .filter((item) => item.productName)
+        .map((item, idx) => {
+          const summary = computeLineCostSummary(item);
+          const base: Record<string, any> = {
+            invoice_id: invoice.id,
+            order_id: item.orderId,
+            product_name: item.productName,
+            description: item.description,
+            inclusions: item.inclusions,
+            quantity: Number(item.quantity) || 0,
+            unit_price: Number(item.unitPrice) || 0,
+            amount: (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0),
+            sort_order: idx,
+          };
+          if (summary) {
+            // Snapshot the cost in its original currency so the math is
+            // re-derivable; also store profit and margin pre-computed in the
+            // invoice's currency for fast read-back.
+            base.unit_cost_snapshot = summary.totalUnitInCostCur;
+            base.cost_currency = summary.costCurrency;
+            base.profit_per_unit = summary.totalRevenue > 0
+              ? (Number(item.unitPrice) || 0) - summary.totalUnitInInvoiceCur
+              : 0;
+            base.margin_percent = summary.margin;
+          }
+          return base;
+        });
 
-      const { error: itemsError } = await supabase
+      let { error: itemsError } = await supabase
         .from('invoice_items')
-        .insert(itemsToInsert);
+        .insert(itemsToInsertWithCosts);
+
+      // Retry without the snapshot columns if the migration isn't applied
+      // yet — keeps invoice creation unblocked.
+      if (itemsError && (itemsError as any).code === 'PGRST204') {
+        const itemsStripped = itemsToInsertWithCosts.map(({
+          unit_cost_snapshot: _u,
+          cost_currency: _c,
+          profit_per_unit: _p,
+          margin_percent: _m,
+          ...rest
+        }) => rest);
+        const retry = await supabase.from('invoice_items').insert(itemsStripped);
+        itemsError = retry.error;
+        if (!itemsError) {
+          toast({
+            title: 'Invoice created (cost snapshot skipped)',
+            description: 'The cost-snapshot columns are not deployed yet. Run the latest Supabase migration to enable cost history.',
+          });
+        }
+      }
 
       if (itemsError) throw itemsError;
+      const itemsToInsert = itemsToInsertWithCosts;
 
       toast({
         title: 'Invoice Created',
@@ -548,6 +686,82 @@ export function CreateInvoiceDialog({
                     </div>
                   </div>
 
+                  {/* Internal Cost Panel — admin-only. Only renders when this
+                      line is linked to an order that has cost data. */}
+                  {isAdmin && (() => {
+                    const summary = computeLineCostSummary(item);
+                    if (!summary) {
+                      if (item.orderId) {
+                        return (
+                          <div className="rounded-md border border-dashed border-amber-300 bg-amber-50/40 dark:bg-amber-950/20 p-3 text-xs text-muted-foreground flex items-center gap-2">
+                            <Lock className="h-3.5 w-3.5" />
+                            No internal costs set on this order yet — add Fabric / Pattern / Cut & Sew costs to see live profit and margin here.
+                          </div>
+                        );
+                      }
+                      return null;
+                    }
+                    const sym = getCurrencySymbol(invoiceCurrency);
+                    const fmtCost = (v: number) => `${getCurrencySymbol(summary.costCurrency)}${v.toFixed(2)}`;
+                    const profitPositive = summary.profit >= 0;
+                    return (
+                      <div className="rounded-md border border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-950/30 p-3 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+                            <TrendingUp className="h-3.5 w-3.5" />
+                            Internal Costs &amp; Margin
+                          </div>
+                          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                            Admin only · costs in {summary.costCurrency}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-xs">
+                          <div>
+                            <p className="text-muted-foreground">Fabric / unit</p>
+                            <p className="font-medium">{fmtCost(summary.fabric)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Pattern / unit</p>
+                            <p className="font-medium">{fmtCost(summary.pattern)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Cut &amp; Sew / unit</p>
+                            <p className="font-medium">{fmtCost(summary.cutSew)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Total cost / unit</p>
+                            <p className="font-semibold">{fmtCost(summary.totalUnitInCostCur)}</p>
+                            {summary.costCurrency !== invoiceCurrency && (
+                              <p className="text-[10px] text-muted-foreground">≈ {sym}{summary.totalUnitInInvoiceCur.toFixed(2)}</p>
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Total cost (line)</p>
+                            <p className="font-semibold">{sym}{summary.totalCost.toFixed(2)}</p>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2 text-xs pt-2 border-t border-amber-200 dark:border-amber-900/50">
+                          <div>
+                            <p className="text-muted-foreground">Revenue</p>
+                            <p className="font-semibold">{sym}{summary.totalRevenue.toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Profit</p>
+                            <p className={`font-semibold ${profitPositive ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                              {sym}{summary.profit.toFixed(2)}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Margin</p>
+                            <p className={`font-semibold ${profitPositive ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                              {summary.margin.toFixed(1)}%
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {/* Inclusions */}
                   <div className="space-y-2">
                     <Label className="text-xs">Includes</Label>
@@ -586,6 +800,43 @@ export function CreateInvoiceDialog({
                   <span>{getCurrencySymbol(invoiceCurrency)}{calculateSubtotal().toFixed(2)}</span>
                 </div>
               </div>
+
+              {/* Overall margin summary — admin-only. Aggregates cost from
+                  every linked line item; lines without cost data contribute
+                  to revenue but contribute zero cost. */}
+              {isAdmin && overallCostSummary.totalCost > 0 && (
+                <div className="rounded-lg border border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-950/30 p-4 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide">
+                      <TrendingUp className="h-3.5 w-3.5" />
+                      Internal Margin Summary
+                    </div>
+                    <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Admin only</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Costs</p>
+                      <p className="font-semibold">{formatInInvoiceCurrency(overallCostSummary.totalCost)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Revenue</p>
+                      <p className="font-semibold">{formatInInvoiceCurrency(overallCostSummary.totalRevenue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Total Profit</p>
+                      <p className={`font-semibold ${overallCostSummary.profit >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                        {formatInInvoiceCurrency(overallCostSummary.profit)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground">Overall Margin</p>
+                      <p className={`font-semibold ${overallCostSummary.profit >= 0 ? 'text-green-700 dark:text-green-400' : 'text-red-700 dark:text-red-400'}`}>
+                        {overallCostSummary.margin.toFixed(1)}%
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Terms & Conditions */}
